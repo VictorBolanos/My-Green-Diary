@@ -1,1 +1,130 @@
-<h1>HOLA MUNDO</h1>
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Green Diary - Diario de Plantas</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="glass-panel">
+            <h1>🌿 My Green Diary</h1>
+            <p class="subtitle">Tu diario personal de plantas</p>
+        </header>
+
+        <!-- Botón para mostrar/ocultar formulario -->
+        <button id="toggleFormBtn" class="btn-primary glass-panel">
+            <span id="btnText">➕ Agregar Nueva Planta</span>
+        </button>
+
+        <!-- Formulario para nueva planta -->
+        <section id="plantFormSection" class="glass-panel form-section hidden">
+            <h2>Nueva Planta</h2>
+            <form id="plantForm">
+                <div class="form-group">
+                    <label for="plantName">Nombre de la Planta *</label>
+                    <input type="text" id="plantName" required placeholder="Ej: Monstera Deliciosa">
+                </div>
+
+                <div class="form-group">
+                    <label for="plantSpecies">Especie *</label>
+                    <input type="text" id="plantSpecies" required placeholder="Ej: Monstera deliciosa">
+                </div>
+
+                <div class="form-group">
+                    <label for="plantAge">Edad</label>
+                    <input type="text" id="plantAge" placeholder="Ej: 2 años, 6 meses">
+                </div>
+
+                <div class="form-group">
+                    <label for="plantPhoto">URL de la Foto</label>
+                    <input type="url" id="plantPhoto" placeholder="https://ejemplo.com/foto.jpg">
+                    <small>O deja vacío para usar una imagen por defecto</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="plantDescription">Descripción</label>
+                    <textarea id="plantDescription" rows="3" placeholder="Descripción de la planta..."></textarea>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="plantLight">Luz Requerida</label>
+                        <select id="plantLight">
+                            <option value="">Seleccionar...</option>
+                            <option value="Sombra">Sombra</option>
+                            <option value="Sombra Parcial">Sombra Parcial</option>
+                            <option value="Luz Indirecta">Luz Indirecta</option>
+                            <option value="Luz Directa">Luz Directa</option>
+                            <option value="Luz Intensa">Luz Intensa</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="plantTemperature">Temperatura (°C)</label>
+                        <input type="text" id="plantTemperature" placeholder="Ej: 18-24°C">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="plantHumidity">Humedad</label>
+                        <select id="plantHumidity">
+                            <option value="">Seleccionar...</option>
+                            <option value="Baja">Baja</option>
+                            <option value="Media">Media</option>
+                            <option value="Alta">Alta</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="plantSubstrate">Mezcla de Sustrato</label>
+                        <input type="text" id="plantSubstrate" placeholder="Ej: Turba, perlita, vermiculita">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="plantWateringFrequency">Frecuencia de Riego</label>
+                    <input type="text" id="plantWateringFrequency" placeholder="Ej: Cada 7-10 días">
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn-primary">Guardar Planta</button>
+                    <button type="button" id="cancelFormBtn" class="btn-secondary">Cancelar</button>
+                </div>
+            </form>
+        </section>
+
+        <!-- Filtros y búsqueda -->
+        <section class="glass-panel filters-section">
+            <div class="search-box">
+                <input type="text" id="searchInput" placeholder="🔍 Buscar plantas...">
+            </div>
+            <div class="filter-buttons">
+                <button class="filter-btn active" data-filter="all">Todas</button>
+                <button class="filter-btn" data-filter="needs-water">Necesitan Riego</button>
+                <button class="filter-btn" data-filter="recent">Recientes</button>
+            </div>
+        </section>
+
+        <!-- Lista de plantas -->
+        <section id="plantsContainer" class="plants-grid">
+            <!-- Las plantas se agregarán aquí dinámicamente -->
+        </section>
+
+        <!-- Modal para editar/ver detalles -->
+        <div id="plantModal" class="modal hidden">
+            <div class="modal-content glass-panel">
+                <span class="close-modal">&times;</span>
+                <div id="modalBody">
+                    <!-- Contenido dinámico -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
