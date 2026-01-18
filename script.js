@@ -930,21 +930,46 @@ class PlantManager {
     }
 
     // Eliminar planta de Firebase o localStorage
-    async deletePlantFromStorage(plantId) {
+    async deletePlantFromStorage(plantId, plant = null) {
         if (this.useFirebase && this.db) {
             try {
-                // Buscar la planta para obtener la URL de la imagen
-                const plant = this.plants.find(p => p.id === plantId);
+                // Usar la planta pasada como parámetro, o buscarla si no se proporcionó
+                if (!plant) {
+                    plant = this.plants.find(p => p.id === plantId);
+                }
                 
-                // Eliminar imagen de Storage si existe y es de Firebase Storage
-                if (plant && plant.photo && plant.photo.includes('firebasestorage.googleapis.com') && this.storage) {
-                    try {
-                        const imageRef = this.storage.refFromURL(plant.photo);
-                        await imageRef.delete();
-                        console.log('✅ Imagen eliminada de Storage');
-                    } catch (storageError) {
-                        console.warn('No se pudo eliminar la imagen de Storage:', storageError);
-                        // Continuar aunque falle la eliminación de la imagen
+                if (plant && this.storage) {
+                    // Normalizar la planta para asegurarnos de tener el array photos
+                    const normalizedPlant = this.normalizePlantData(plant);
+                    const photos = normalizedPlant.photos || [];
+                    
+                    // Eliminar todas las fotos de Firebase Storage
+                    if (photos.length > 0) {
+                        for (const photoUrl of photos) {
+                            // Solo intentar eliminar si es una URL de Firebase Storage
+                            if (photoUrl && photoUrl.includes('firebasestorage.googleapis.com')) {
+                                try {
+                                    const imageRef = this.storage.refFromURL(photoUrl);
+                                    await imageRef.delete();
+                                    console.log('✅ Foto eliminada de Storage:', photoUrl);
+                                } catch (storageError) {
+                                    console.warn('⚠️ No se pudo eliminar la foto de Storage (puede que ya no exista):', photoUrl, storageError);
+                                    // Continuar eliminando otras fotos aunque falle una
+                                }
+                            }
+                        }
+                    }
+                    
+                    // También intentar eliminar el campo photo antiguo si existe (retrocompatibilidad)
+                    if (plant.photo && plant.photo.includes('firebasestorage.googleapis.com')) {
+                        try {
+                            const imageRef = this.storage.refFromURL(plant.photo);
+                            await imageRef.delete();
+                            console.log('✅ Imagen antigua eliminada de Storage');
+                        } catch (storageError) {
+                            console.warn('⚠️ No se pudo eliminar la imagen antigua de Storage:', storageError);
+                            // Continuar aunque falle
+                        }
                     }
                 }
                 
@@ -1616,8 +1641,15 @@ class PlantManager {
             return false; // Retornar false si se cancela
         }
         
+        // IMPORTANTE: Primero obtener la referencia a la planta ANTES de eliminarla del array
+        // para poder borrar las fotos de Firebase Storage
+        const plant = this.plants.find(p => p.id === plantId);
+        
+        // Eliminar las fotos de Storage y el documento de Firestore (necesita la planta antes de eliminarla)
+        await this.deletePlantFromStorage(plantId, plant);
+        
+        // Ahora sí, eliminar la planta del array
         this.plants = this.plants.filter(p => p.id !== plantId);
-        await this.deletePlantFromStorage(plantId);
         await this.savePlants();
         this.renderPlants();
         this.showNotification('Planta eliminada', 'success');
@@ -2749,14 +2781,20 @@ let correctPasswordHash = null;
 async function initAuth() {
     // Calcular el hash de la contraseña correcta una sola vez
     if (!correctPasswordHash) {
-        correctPasswordHash = await hashPassword('bichito21');
+        correctPasswordHash = await hashPassword('20212404');
     }
     
     const authModal = document.getElementById('authModal');
     const mainContent = document.getElementById('mainContent');
     const authForm = document.getElementById('authForm');
-    const authPassword = document.getElementById('authPassword');
     const authError = document.getElementById('authError');
+    const pinDisplay = document.getElementById('pinDisplay');
+    const pinDeleteBtn = document.getElementById('pinDeleteBtn');
+    const pinSubmitBtn = document.getElementById('pinSubmitBtn');
+    const pinKeys = document.querySelectorAll('.pin-key[data-number]');
+    
+    let pinInput = ''; // Almacenar el PIN ingresado
+    const maxPinLength = 8; // Longitud máxima del PIN
     
     // Verificar si ya está autenticado (en sessionStorage)
     const sessionAuth = sessionStorage.getItem('authenticated');
@@ -2772,18 +2810,59 @@ async function initAuth() {
     authModal.classList.remove('hidden');
     mainContent.style.display = 'none';
     
-    authForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const password = authPassword.value.trim();
-        
-        if (!password) {
-            authError.textContent = 'Por favor, introduce una clave';
+    // Función para actualizar el display del PIN
+    function updatePinDisplay() {
+        const dots = pinDisplay.querySelectorAll('.pin-dot');
+        dots.forEach((dot, index) => {
+            if (index < pinInput.length) {
+                dot.classList.add('filled');
+            } else {
+                dot.classList.remove('filled');
+            }
+        });
+    }
+    
+    // Función para borrar el último dígito
+    function deleteLastDigit() {
+        if (pinInput.length > 0) {
+            pinInput = pinInput.slice(0, -1);
+            updatePinDisplay();
+            authError.style.display = 'none';
+        }
+    }
+    
+    // Función para agregar un dígito
+    function addDigit(digit) {
+        if (pinInput.length < maxPinLength) {
+            pinInput += digit;
+            updatePinDisplay();
+            authError.style.display = 'none';
+        }
+    }
+    
+    // Event listeners para las teclas numéricas
+    pinKeys.forEach(key => {
+        key.addEventListener('click', () => {
+            const number = key.getAttribute('data-number');
+            addDigit(number);
+        });
+    });
+    
+    // Botón de borrar
+    pinDeleteBtn.addEventListener('click', () => {
+        deleteLastDigit();
+    });
+    
+    // Botón de enviar
+    pinSubmitBtn.addEventListener('click', async () => {
+        if (pinInput.length === 0) {
+            authError.textContent = 'Por favor, introduce el PIN';
             authError.style.display = 'block';
             return;
         }
         
-        // Hashear la contraseña ingresada
-        const inputHash = await hashPassword(password);
+        // Hashear el PIN ingresado
+        const inputHash = await hashPassword(pinInput);
         
         // Comparar con el hash correcto
         if (inputHash === correctPasswordHash) {
@@ -2791,14 +2870,30 @@ async function initAuth() {
             sessionStorage.setItem('authenticated', 'true');
             authModal.classList.add('hidden');
             mainContent.style.display = 'block';
-            authPassword.value = '';
+            pinInput = '';
+            updatePinDisplay();
             authError.style.display = 'none';
             initApp();
         } else {
-            authError.textContent = 'Clave incorrecta. Inténtalo de nuevo.';
+            authError.textContent = 'PIN incorrecto. Inténtalo de nuevo.';
             authError.style.display = 'block';
-            authPassword.value = '';
-            authPassword.focus();
+            pinInput = '';
+            updatePinDisplay();
+        }
+    });
+    
+    // Permitir usar el teclado físico también
+    document.addEventListener('keydown', (e) => {
+        if (authModal.classList.contains('hidden')) return;
+        
+        if (e.key >= '0' && e.key <= '9') {
+            addDigit(e.key);
+        } else if (e.key === 'Backspace') {
+            e.preventDefault();
+            deleteLastDigit();
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            pinSubmitBtn.click();
         }
     });
 }

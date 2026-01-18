@@ -1069,72 +1069,91 @@ small {
 }
 
 /* Botones de eliminar fotos */
-.carousel-thumb-wrapper {
-    position: relative;
-    display: inline-block;
-}
 
 .carousel-delete-btn {
     position: absolute;
-    top: 10px;
-    right: 10px;
-    background: rgba(220, 53, 69, 0.9);
-    border: 1px solid rgba(255, 255, 255, 0.8);
+    bottom: 12px;
+    right: 12px;
+    background: rgba(220, 53, 69, 0.95);
+    border: 2px solid rgba(255, 255, 255, 0.9);
     border-radius: 50%;
-    width: 36px;
-    height: 36px;
+    width: 40px;
+    height: 40px;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
     transition: all 0.3s ease;
-    z-index: 10;
+    z-index: 15;
     padding: 0;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
 }
 
 .carousel-delete-btn:hover {
     background: rgba(220, 53, 69, 1);
-    transform: scale(1.1);
+    border-color: rgba(255, 255, 255, 1);
+    transform: scale(1.15);
+    box-shadow: 0 4px 12px rgba(220, 53, 69, 0.6);
+}
+
+.carousel-delete-btn:active {
+    transform: scale(1.05);
 }
 
 .carousel-delete-icon {
-    width: 18px;
-    height: 18px;
+    width: 20px;
+    height: 20px;
     filter: brightness(0) invert(1);
+    pointer-events: none;
+}
+
+.carousel-thumb-wrapper {
+    position: relative;
+    display: inline-block;
+    transition: all 0.3s ease;
 }
 
 .carousel-thumb-delete-btn {
     position: absolute;
-    top: 2px;
-    right: 2px;
-    background: rgba(220, 53, 69, 0.9);
-    border: 1px solid rgba(255, 255, 255, 0.8);
+    top: -6px;
+    right: -6px;
+    background: rgba(220, 53, 69, 0.95);
+    border: 2px solid rgba(255, 255, 255, 0.9);
     border-radius: 50%;
-    width: 24px;
-    height: 24px;
+    width: 28px;
+    height: 28px;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
     transition: all 0.3s ease;
-    z-index: 10;
+    z-index: 20;
     padding: 0;
-    opacity: 0;
+    opacity: 0.8;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
 }
 
 .carousel-thumb-wrapper:hover .carousel-thumb-delete-btn {
     opacity: 1;
+    transform: scale(1.1);
 }
 
 .carousel-thumb-delete-btn:hover {
     background: rgba(220, 53, 69, 1);
-    transform: scale(1.1);
+    border-color: rgba(255, 255, 255, 1);
+    transform: scale(1.2);
+    box-shadow: 0 3px 10px rgba(220, 53, 69, 0.6);
+}
+
+.carousel-thumb-delete-btn:active {
+    transform: scale(1.05);
 }
 
 .carousel-thumb-delete-icon {
-    width: 12px;
-    height: 12px;
+    width: 14px;
+    height: 14px;
     filter: brightness(0) invert(1);
+    pointer-events: none;
 }
 
 /* Calendario de riegos */
@@ -1938,6 +1957,79 @@ small {
     filter: brightness(0) invert(1);
 }
 
+/* Estilos del PIN Keyboard */
+.pin-display {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    margin-bottom: 30px;
+    padding: 20px;
+}
+
+.pin-dot {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.5);
+    background: transparent;
+    transition: all 0.3s ease;
+}
+
+.pin-dot.filled {
+    background: var(--accent-green);
+    border-color: var(--accent-green);
+    box-shadow: 0 0 8px rgba(74, 154, 74, 0.6);
+}
+
+.pin-keyboard {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    max-width: 280px;
+    margin: 0 auto;
+}
+
+.pin-key {
+    width: 70px;
+    height: 70px;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.8);
+    background: rgba(10, 31, 10, 0.7);
+    color: var(--text-light);
+    font-size: 1.5rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.pin-key:hover {
+    background: rgba(74, 154, 74, 0.3);
+    border-color: var(--accent-green);
+    transform: scale(1.05);
+}
+
+.pin-key:active {
+    transform: scale(0.95);
+    background: rgba(74, 154, 74, 0.5);
+}
+
+.pin-key-delete {
+    font-size: 1.3rem;
+}
+
+.pin-key-submit {
+    font-size: 1.8rem;
+    color: var(--accent-green);
+}
+
+.pin-key-submit:hover {
+    background: rgba(74, 154, 74, 0.5);
+    box-shadow: 0 0 12px rgba(74, 154, 74, 0.6);
+}
+
 @media (max-width: 768px) {
     .dual-list-selector {
         flex-direction: column;
@@ -1947,5 +2039,16 @@ small {
         flex-direction: row;
         padding-top: 10px;
         justify-content: center;
+    }
+    
+    .pin-keyboard {
+        max-width: 260px;
+        gap: 10px;
+    }
+    
+    .pin-key {
+        width: 65px;
+        height: 65px;
+        font-size: 1.3rem;
     }
 }

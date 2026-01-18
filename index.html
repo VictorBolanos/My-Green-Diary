@@ -18,16 +18,36 @@
     <div id="authModal" class="modal">
         <div class="modal-content glass-panel" style="max-width: 400px;">
             <h2 style="color: var(--light-green); margin-bottom: 20px; text-align: center;">Acceso Restringido</h2>
-            <p style="color: var(--text-muted); margin-bottom: 20px; text-align: center;">Por favor, introduce la clave de acceso:</p>
-            <form id="authForm">
-                <div class="form-group">
-                    <input type="password" id="authPassword" placeholder="Clave de acceso" required autofocus style="width: 100%; padding: 12px; border: 1px solid rgba(255, 255, 255, 0.8); border-radius: 8px; background: rgba(10, 31, 10, 0.7); color: var(--text-light); font-size: 1rem;">
+            <p style="color: var(--text-muted); margin-bottom: 20px; text-align: center;">Por favor, introduce el PIN:</p>
+            <div id="authForm">
+                <!-- Display de PIN -->
+                <div id="pinDisplay" class="pin-display">
+                    <div class="pin-dot"></div>
+                    <div class="pin-dot"></div>
+                    <div class="pin-dot"></div>
+                    <div class="pin-dot"></div>
+                    <div class="pin-dot"></div>
+                    <div class="pin-dot"></div>
+                    <div class="pin-dot"></div>
+                    <div class="pin-dot"></div>
                 </div>
                 <div id="authError" style="color: #ff6b6b; margin-bottom: 15px; text-align: center; display: none;"></div>
-                <button type="submit" class="btn-primary" style="width: 100%;">
-                    Acceder
-                </button>
-            </form>
+                <!-- Teclado PIN -->
+                <div class="pin-keyboard">
+                    <button type="button" class="pin-key" data-number="1">1</button>
+                    <button type="button" class="pin-key" data-number="2">2</button>
+                    <button type="button" class="pin-key" data-number="3">3</button>
+                    <button type="button" class="pin-key" data-number="4">4</button>
+                    <button type="button" class="pin-key" data-number="5">5</button>
+                    <button type="button" class="pin-key" data-number="6">6</button>
+                    <button type="button" class="pin-key" data-number="7">7</button>
+                    <button type="button" class="pin-key" data-number="8">8</button>
+                    <button type="button" class="pin-key" data-number="9">9</button>
+                    <button type="button" class="pin-key pin-key-delete" id="pinDeleteBtn">⌫</button>
+                    <button type="button" class="pin-key" data-number="0">0</button>
+                    <button type="button" class="pin-key pin-key-submit" id="pinSubmitBtn">✓</button>
+                </div>
+            </div>
         </div>
     </div>
 
