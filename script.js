@@ -1890,6 +1890,47 @@ class PlantManager {
                     }
                 }
             });
+            
+            // Filtrado por temperatura
+            document.querySelectorAll('.dashboard-progress-item').forEach(item => {
+                const panel = item.closest('.dashboard-panel');
+                if (panel && panel.querySelector('.dashboard-panel-title').textContent.includes('Temperatura')) {
+                    const label = item.querySelector('.dashboard-progress-label').textContent.trim();
+                    if (!label.includes('Promedio')) {
+                        item.addEventListener('click', () => {
+                            this.filterByTemperature(label);
+                        });
+                    }
+                }
+            });
+            
+            // Filtrado por humedad
+            document.querySelectorAll('.dashboard-progress-item').forEach(item => {
+                const panel = item.closest('.dashboard-panel');
+                if (panel && panel.querySelector('.dashboard-panel-title').textContent.includes('Humedad')) {
+                    const label = item.querySelector('.dashboard-progress-label').textContent.trim();
+                    if (!label.includes('Promedio')) {
+                        item.addEventListener('click', () => {
+                            this.filterByHumidity(label);
+                        });
+                    }
+                }
+            });
+            
+            // Filtrado por estado de salud
+            document.querySelectorAll('.dashboard-compact-legend-item').forEach((item, index) => {
+                const panel = item.closest('.dashboard-panel');
+                if (panel && panel.querySelector('.dashboard-panel-title').textContent.includes('Salud')) {
+                    item.addEventListener('click', () => {
+                        const text = item.textContent.trim();
+                        if (text.includes('Saludable')) {
+                            this.filterByHealth('healthy');
+                        } else if (text.includes('Mala salud')) {
+                            this.filterByHealth('poor');
+                        }
+                    });
+                }
+            });
         }, 100);
     }
 
@@ -1904,23 +1945,18 @@ class PlantManager {
     }
 
     filterByLight(lightLevel) {
-        const lightMapping = {
-            'Alta': ['Luz Intensa', 'Luz Directa'],
-            'Media': ['Luz Indirecta', 'Sombra Parcial'],
-            'Baja': ['Sombra']
-        };
-        
-        const lightTypes = lightMapping[lightLevel] || [lightLevel];
+        // Usar el valor real de luz directamente
         const filtered = this.plants.filter(plant => {
             const light = plant.light || '';
-            return lightTypes.some(type => light.includes(type));
+            return light === lightLevel;
         });
         
         this.renderPlants(filtered);
         this.showNotification(`Filtrado por luz: ${lightLevel}`, 'success');
     }
 
-    filterByWatering(wateringLevel) {
+    filterByWatering(wateringRange) {
+        // Filtrar por rango de días (ej: "1-3 días", "4-7 días", etc.)
         const filtered = this.plants.filter(plant => {
             const spring = parseInt(plant.wateringSpring) || 0;
             const summer = parseInt(plant.wateringSummer) || 0;
@@ -1930,18 +1966,64 @@ class PlantManager {
             
             if (avgDays === 0) return false;
             
-            if (wateringLevel === 'Alto') {
-                return avgDays <= 5;
-            } else if (wateringLevel === 'Moderado') {
-                return avgDays > 5 && avgDays <= 10;
-            } else if (wateringLevel === 'Bajo') {
-                return avgDays > 10;
+            // Mapear el rango a días
+            if (wateringRange === '1-3 días') {
+                return avgDays <= 3;
+            } else if (wateringRange === '4-7 días') {
+                return avgDays > 3 && avgDays <= 7;
+            } else if (wateringRange === '8-14 días') {
+                return avgDays > 7 && avgDays <= 14;
+            } else if (wateringRange === '15-21 días') {
+                return avgDays > 14 && avgDays <= 21;
+            } else if (wateringRange === '22+ días') {
+                return avgDays > 21;
             }
             return false;
         });
         
         this.renderPlants(filtered);
-        this.showNotification(`Filtrado por riego: ${wateringLevel}`, 'success');
+        this.showNotification(`Filtrado por riego: ${wateringRange}`, 'success');
+    }
+
+    filterByTemperature(temperatureLevel) {
+        // Usar el valor real de temperatura directamente
+        const filtered = this.plants.filter(plant => {
+            const temp = plant.temperature || '';
+            return temp === temperatureLevel;
+        });
+        
+        this.renderPlants(filtered);
+        this.showNotification(`Filtrado por temperatura: ${temperatureLevel}`, 'success');
+    }
+
+    filterByHumidity(humidityLevel) {
+        // Usar el valor real de humedad directamente
+        const filtered = this.plants.filter(plant => {
+            const humidity = plant.humidity || '';
+            return humidity === humidityLevel;
+        });
+        
+        this.renderPlants(filtered);
+        this.showNotification(`Filtrado por humedad: ${humidityLevel}`, 'success');
+    }
+
+    filterByHealth(healthStatus) {
+        const filtered = this.plants.filter(plant => {
+            if (healthStatus === 'healthy') {
+                // Plantas saludables: health > 50
+                const health = parseInt(plant.health) || 0;
+                return health > 50;
+            } else if (healthStatus === 'poor') {
+                // Plantas en mala salud: health <= 50
+                const health = parseInt(plant.health) || 0;
+                return health <= 50;
+            }
+            return false;
+        });
+        
+        this.renderPlants(filtered);
+        const statusText = healthStatus === 'healthy' ? 'Saludable' : 'Mala salud';
+        this.showNotification(`Filtrado por estado: ${statusText}`, 'success');
     }
 
     renderPlants(plantsToRender = null) {
@@ -3092,20 +3174,27 @@ class PlantManager {
     }
 
     clearAdvancedFilters() {
-        document.getElementById('filterSpecies').value = '';
-        document.getElementById('filterLight').value = '';
-        document.getElementById('filterHumidity').value = '';
-        document.getElementById('filterVariety').value = '';
-        document.getElementById('searchInput').value = '';
-        this.renderPlants();
-        this.showNotification('Filtros limpiados', 'success');
+        // Limpiar campos de filtros avanzados si existen
+        const filterSpecies = document.getElementById('filterSpecies');
+        const filterLight = document.getElementById('filterLight');
+        const filterHumidity = document.getElementById('filterHumidity');
+        const filterVariety = document.getElementById('filterVariety');
+        
+        if (filterSpecies) filterSpecies.value = '';
+        if (filterLight) filterLight.value = '';
+        if (filterHumidity) filterHumidity.value = '';
+        if (filterVariety) filterVariety.value = '';
+        
+        // Limpiar input de búsqueda
+        const searchInput = document.getElementById('searchInput');
+        if (searchInput) searchInput.value = '';
     }
 
     clearAllFilters() {
-        // Limpiar filtros avanzados
+        // Limpiar filtros avanzados (de forma segura)
         this.clearAdvancedFilters();
         
-        // Limpiar filtros de píldoras
+        // Limpiar filtros de píldoras si existen
         document.querySelectorAll('.filter-btn').forEach(btn => {
             btn.classList.remove('active');
         });
@@ -3114,7 +3203,7 @@ class PlantManager {
             allBtn.classList.add('active');
         }
         
-        // Renderizar todas las plantas
+        // Renderizar todas las plantas (sin filtros)
         this.renderPlants();
         this.showNotification('Filtros quitados', 'success');
     }
