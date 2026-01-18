@@ -36,18 +36,43 @@ class PlantManager {
 
     // Helper: Normalizar datos de planta (migrar estructura antigua)
     normalizePlantData(plant) {
-        // Migrar photo a photos
+        // Migrar photo a photos (pero no si ya existe photos)
         if (plant.photo && !plant.photos) {
+            // Si hay photo pero no photos, crear array con photo
             plant.photos = [plant.photo];
+            // Eliminar photo para evitar confusión
+            delete plant.photo;
         } else if (!plant.photos) {
+            // Si no hay ni photo ni photos, crear array vacío
             plant.photos = [];
+        } else {
+            // Si ya existe photos, eliminar photo si existe para evitar duplicados
+            if (plant.photo) {
+                delete plant.photo;
+            }
+            // Asegurar que photos es un array y eliminar duplicados
+            if (!Array.isArray(plant.photos)) {
+                plant.photos = [plant.photos];
+            }
+            // Eliminar duplicados del array
+            plant.photos = [...new Set(plant.photos)];
         }
         
         // Migrar lastWatered a wateringDates
         if (plant.lastWatered && !plant.wateringDates) {
             plant.wateringDates = [plant.lastWatered];
+            delete plant.lastWatered;
         } else if (!plant.wateringDates) {
             plant.wateringDates = [];
+        } else {
+            // Si ya existe wateringDates, eliminar lastWatered si existe
+            if (plant.lastWatered) {
+                delete plant.lastWatered;
+            }
+            // Asegurar que wateringDates es un array
+            if (!Array.isArray(plant.wateringDates)) {
+                plant.wateringDates = [plant.wateringDates];
+            }
         }
         
         return plant;
@@ -1151,6 +1176,25 @@ class PlantManager {
         const photoData = await this.getPhotoData();
         const existingPlant = this.currentEditingId ? this.plants.find(p => p.id === this.currentEditingId) : null;
         
+        // Obtener fotos existentes normalizadas (sin duplicados)
+        let existingPhotos = [];
+        if (existingPlant) {
+            const normalized = this.normalizePlantData({...existingPlant});
+            existingPhotos = normalized.photos || [];
+        }
+        
+        // Si hay nueva foto, añadirla (sin duplicados)
+        if (photoData) {
+            if (!existingPhotos.includes(photoData)) {
+                existingPhotos.push(photoData);
+            }
+        }
+        
+        // Si no hay fotos, usar imagen por defecto
+        if (existingPhotos.length === 0) {
+            existingPhotos = ['https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=400'];
+        }
+        
         const formData = {
             id: this.currentEditingId || Date.now().toString(),
             name: document.getElementById('plantName').value.trim(),
@@ -1158,7 +1202,7 @@ class PlantManager {
             variety: document.getElementById('plantVariety').value.trim(),
             type: document.getElementById('plantType').value || '',
             acquisitionDate: document.getElementById('plantAcquisitionDate').value || null,
-            photos: photoData ? [...(this.normalizePlantData(existingPlant || {}).photos || []), photoData] : (existingPlant ? this.normalizePlantData(existingPlant).photos : []) || ['https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=400'],
+            photos: existingPhotos,
             description: document.getElementById('plantDescription').value.trim(),
             light: document.getElementById('plantLight').value,
             temperature: document.getElementById('plantTemperature').value.trim(),
