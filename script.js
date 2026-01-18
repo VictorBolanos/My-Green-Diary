@@ -1215,11 +1215,24 @@ class PlantManager {
         const container = document.getElementById('plantsContainer');
         const plants = plantsToRender || this.plants;
 
-        if (plants.length === 0) {
+        // Si no hay plantas en la base de datos
+        if (this.plants.length === 0) {
             container.innerHTML = `
                 <div class="glass-panel" style="grid-column: 1 / -1; text-align: center; padding: 40px;">
                     <p style="font-size: 1.2rem; color: var(--text-muted);">
                         🌱 No hay plantas registradas aún. ¡Agrega tu primera planta!
+                    </p>
+                </div>
+            `;
+            return;
+        }
+
+        // Si hay plantas pero los filtros no encontraron coincidencias
+        if (plants.length === 0) {
+            container.innerHTML = `
+                <div class="glass-panel" style="grid-column: 1 / -1; text-align: center; padding: 40px;">
+                    <p style="font-size: 1.2rem; color: var(--text-muted);">
+                        🔍 No se encontraron plantas que coincidan con los filtros aplicados.
                     </p>
                 </div>
             `;
