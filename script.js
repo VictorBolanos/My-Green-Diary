@@ -476,6 +476,12 @@ class PlantManager {
         return stored ? JSON.parse(stored) : [];
     }
 
+    // Detectar si es un dispositivo móvil
+    isMobileDevice() {
+        return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || 
+               (window.matchMedia && window.matchMedia("(max-width: 768px)").matches);
+    }
+
     setupEventListeners() {
         try {
             // Formulario
@@ -502,8 +508,9 @@ class PlantManager {
             }
 
             // Cerrar formulario al hacer clic fuera (pero NO cerrar el modal de detalles)
+            // Solo en dispositivos de escritorio, no en móviles
             const plantFormModal = document.getElementById('plantFormModal');
-            if (plantFormModal) {
+            if (plantFormModal && !this.isMobileDevice()) {
                 let mouseDownOnBackground = false;
                 
                 plantFormModal.addEventListener('mousedown', (e) => {
@@ -558,23 +565,26 @@ class PlantManager {
                 }
                 
                 // Listener para cerrar al hacer clic fuera (en el fondo)
-                let mouseDownOnBackground = false;
-                
-                plantModal.addEventListener('mousedown', (e) => {
-                    // Marcar si el mousedown ocurrió en el fondo
-                    mouseDownOnBackground = (e.target.id === 'plantModal');
-                });
-                
-                plantModal.addEventListener('mouseup', (e) => {
-                    // Solo cerrar si tanto mousedown como mouseup ocurrieron en el fondo
-                    if (mouseDownOnBackground && e.target.id === 'plantModal') {
-                        const formModal = document.getElementById('plantFormModal');
-                        if (!formModal || formModal.classList.contains('hidden')) {
-                            this.closeModal();
+                // Solo en dispositivos de escritorio, no en móviles
+                if (!this.isMobileDevice()) {
+                    let mouseDownOnBackground = false;
+                    
+                    plantModal.addEventListener('mousedown', (e) => {
+                        // Marcar si el mousedown ocurrió en el fondo
+                        mouseDownOnBackground = (e.target.id === 'plantModal');
+                    });
+                    
+                    plantModal.addEventListener('mouseup', (e) => {
+                        // Solo cerrar si tanto mousedown como mouseup ocurrieron en el fondo
+                        if (mouseDownOnBackground && e.target.id === 'plantModal') {
+                            const formModal = document.getElementById('plantFormModal');
+                            if (!formModal || formModal.classList.contains('hidden')) {
+                                this.closeModal();
+                            }
                         }
-                    }
-                    mouseDownOnBackground = false;
-                });
+                        mouseDownOnBackground = false;
+                    });
+                }
                 
                 // Observer para detectar cuando el modal se oculta y cerrar la leyenda
                 const observer = new MutationObserver((mutations) => {
@@ -650,7 +660,7 @@ class PlantManager {
             }
 
             const bgModal = document.getElementById('bgModal');
-            if (bgModal) {
+            if (bgModal && !this.isMobileDevice()) {
                 let mouseDownOnBackground = false;
                 bgModal.addEventListener('mousedown', (e) => {
                     mouseDownOnBackground = (e.target.id === 'bgModal' || e.target.classList.contains('close-bg-modal'));
@@ -1549,17 +1559,19 @@ class PlantManager {
         
         newModal.classList.remove('hidden');
         
-        // Cerrar al hacer clic fuera
-        let mouseDownOnBackground = false;
-        newModal.addEventListener('mousedown', (e) => {
-            mouseDownOnBackground = (e.target.id === 'wateringCalendarModal');
-        });
-        newModal.addEventListener('mouseup', (e) => {
-            if (mouseDownOnBackground && e.target.id === 'wateringCalendarModal') {
-                newModal.classList.add('hidden');
-            }
-            mouseDownOnBackground = false;
-        });
+        // Cerrar al hacer clic fuera (solo en escritorio, no en móviles)
+        if (!this.isMobileDevice()) {
+            let mouseDownOnBackground = false;
+            newModal.addEventListener('mousedown', (e) => {
+                mouseDownOnBackground = (e.target.id === 'wateringCalendarModal');
+            });
+            newModal.addEventListener('mouseup', (e) => {
+                if (mouseDownOnBackground && e.target.id === 'wateringCalendarModal') {
+                    newModal.classList.add('hidden');
+                }
+                mouseDownOnBackground = false;
+            });
+        }
     }
 
     openPhotoLightbox(plantId, photoIndex) {
@@ -1594,17 +1606,19 @@ class PlantManager {
             document.body.insertAdjacentHTML('beforeend', lightboxHtml);
             lightbox = document.getElementById('photoLightboxModal');
             
-            // Cerrar al hacer clic fuera o con ESC
-            let mouseDownOnBackground = false;
-            lightbox.addEventListener('mousedown', (e) => {
-                mouseDownOnBackground = (e.target.id === 'photoLightboxModal' || e.target.classList.contains('lightbox-image'));
-            });
-            lightbox.addEventListener('mouseup', (e) => {
-                if (mouseDownOnBackground && (e.target.id === 'photoLightboxModal' || e.target.classList.contains('lightbox-image'))) {
-                    lightbox.classList.add('hidden');
-                }
-                mouseDownOnBackground = false;
-            });
+            // Cerrar al hacer clic fuera o con ESC (solo en escritorio, no en móviles)
+            if (!this.isMobileDevice()) {
+                let mouseDownOnBackground = false;
+                lightbox.addEventListener('mousedown', (e) => {
+                    mouseDownOnBackground = (e.target.id === 'photoLightboxModal' || e.target.classList.contains('lightbox-image'));
+                });
+                lightbox.addEventListener('mouseup', (e) => {
+                    if (mouseDownOnBackground && (e.target.id === 'photoLightboxModal' || e.target.classList.contains('lightbox-image'))) {
+                        lightbox.classList.add('hidden');
+                    }
+                    mouseDownOnBackground = false;
+                });
+            }
             
             document.addEventListener('keydown', (e) => {
                 if (e.key === 'Escape' && !lightbox.classList.contains('hidden')) {
