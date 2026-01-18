@@ -64,14 +64,19 @@
 
         <!-- Dashboard de Resumen -->
         <section id="dashboardSection" class="glass-panel dashboard-section">
+            <div class="dashboard-header">
+                <h2 style="display: flex; align-items: center; gap: 10px; margin: 0;">
+                    <img src="img/icons/statistics.svg" alt="Estadísticas" class="label-icon" style="width: 24px; height: 24px;">
+                    Resumen de Plantas
+                </h2>
+                <button id="toggleDashboardBtn" class="btn-action" title="Colapsar/Expandir">
+                    <img src="img/icons/minus.svg" alt="Colapsar" class="btn-action-icon toggle-icon">
+                </button>
+            </div>
             <div id="dashboardContent">
                 <!-- Se renderizará dinámicamente -->
             </div>
-        </section>
-
-        <!-- Filtros y búsqueda -->
-        <section class="glass-panel filters-section">
-            <div class="search-box" style="display: flex; gap: 10px; align-items: center;">
+            <div class="dashboard-actions" style="display: flex; gap: 10px; align-items: center; margin-top: 12px;">
                 <button id="openPlantModalBtn" class="btn-secondary btn-small">
                     <img src="img/icons/plus.svg" alt="Agregar" class="btn-icon">
                     Nueva Planta
@@ -79,58 +84,6 @@
                 <div style="position: relative; flex: 1;">
                     <img src="img/icons/search.svg" alt="Buscar" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); width: 18px; height: 18px; filter: brightness(0) invert(1); opacity: 0.7; z-index: 1; pointer-events: none;">
                     <input type="text" id="searchInput" placeholder="Buscar plantas..." style="flex: 1; padding-left: 38px;">
-                </div>
-            </div>
-            <div class="filter-buttons" style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-                <button class="filter-btn active" data-filter="all">Todas</button>
-                <button class="filter-btn" data-filter="needs-water">Necesitan Riego</button>
-                <button class="filter-btn" data-filter="recent">Recientes</button>
-                <button class="filter-btn" data-filter="poor-health">Mala Salud</button>
-                <button id="clearAllFiltersBtn" class="btn-secondary btn-small" style="margin-left: auto;">
-                    <img src="img/icons/cancel.svg" alt="Quitar filtros" class="btn-icon">
-                    Quitar Filtros
-                </button>
-            </div>
-            <div class="advanced-filters">
-                <button id="toggleFiltersBtn" class="btn-secondary btn-small">
-                    <img src="img/icons/filter.svg" alt="Filtros" class="btn-icon" id="toggleFilterIcon"> Filtros Avanzados
-                </button>
-                <div id="advancedFiltersPanel" class="advanced-filters-panel hidden">
-                    <div class="form-row-grid">
-                        <div class="form-group">
-                            <label for="filterSpecies">Filtrar por Especie</label>
-                            <input type="text" id="filterSpecies" placeholder="Ej: Monstera">
-                        </div>
-                        <div class="form-group">
-                            <label for="filterLight">Filtrar por Luz</label>
-                            <select id="filterLight">
-                                <option value="">Todas</option>
-                                <option value="Sombra">Sombra</option>
-                                <option value="Sombra Parcial">Sombra Parcial</option>
-                                <option value="Luz Indirecta">Luz Indirecta</option>
-                                <option value="Luz Directa">Luz Directa</option>
-                                <option value="Luz Intensa">Luz Intensa</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label for="filterHumidity">Filtrar por Humedad</label>
-                            <select id="filterHumidity">
-                                <option value="">Todas</option>
-                                <option value="BAJA (<40%)">BAJA (<40%)</option>
-                                <option value="MEDIA (40-60%)">MEDIA (40-60%)</option>
-                                <option value="ALTA (60-80%)">ALTA (60-80%)</option>
-                                <option value="MUY ALTA (>80%)">MUY ALTA (>80%)</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label for="filterVariety">Filtrar por Variación</label>
-                            <input type="text" id="filterVariety" placeholder="Ej: Variegata">
-                        </div>
-                    </div>
-                    <div style="margin-top: 15px; display: flex; gap: 10px;">
-                        <button id="applyFiltersBtn" class="btn-primary btn-small">Aplicar Filtros</button>
-                        <button id="clearFiltersBtn" class="btn-secondary btn-small">Limpiar Filtros</button>
-                    </div>
                 </div>
             </div>
         </section>

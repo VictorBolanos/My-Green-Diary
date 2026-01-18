@@ -706,6 +706,24 @@ class PlantManager {
                 });
             }
 
+            // Botón de toggle del dashboard
+            const toggleDashboardBtn = document.getElementById('toggleDashboardBtn');
+            if (toggleDashboardBtn) {
+                toggleDashboardBtn.addEventListener('click', () => {
+                    const dashboardSection = document.getElementById('dashboardSection');
+                    const dashboardContent = document.getElementById('dashboardContent');
+                    if (dashboardSection && dashboardContent) {
+                        dashboardSection.classList.toggle('collapsed');
+                        const isCollapsed = dashboardSection.classList.contains('collapsed');
+                        const toggleIcon = toggleDashboardBtn.querySelector('.toggle-icon');
+                        if (toggleIcon) {
+                            toggleIcon.src = isCollapsed ? 'img/icons/plus.svg' : 'img/icons/minus.svg';
+                            toggleIcon.alt = isCollapsed ? 'Expandir' : 'Colapsar';
+                        }
+                    }
+                });
+            }
+
             // Modal
             const plantModal = document.getElementById('plantModal');
             if (plantModal) {
@@ -1484,6 +1502,7 @@ class PlantManager {
         let typeStats = {};
         let lightStats = {};
         let humidityStats = {};
+        let tempStats = {};
         let wateringFreqStats = { alta: 0, moderado: 0, bajo: 0 };
 
         plants.forEach(plant => {
@@ -1518,6 +1537,10 @@ class PlantManager {
             const humidity = plant.humidity || 'Sin especificar';
             humidityStats[humidity] = (humidityStats[humidity] || 0) + 1;
             
+            // Estadísticas por temperatura
+            const temp = plant.temperature || 'Sin especificar';
+            tempStats[temp] = (tempStats[temp] || 0) + 1;
+            
             // Analizar frecuencia de riego (promedio de las 4 estaciones)
             const spring = parseInt(plant.wateringSpring) || 0;
             const summer = parseInt(plant.wateringSummer) || 0;
@@ -1538,54 +1561,33 @@ class PlantManager {
         const healthyPlants = totalPlants - poorHealth;
         const healthPercentage = totalPlants > 0 ? Math.round((healthyPlants / totalPlants) * 100) : 0;
 
-        // Agrupar tipos en categorías más compactas
-        const typeCategories = {
-            'Suculentas': ['Suculenta', 'Cactus'],
-            'Trep./Colg.': ['Trepadora/enredadera', 'Colgante'],
-            'Palmeras': ['Palmera'],
-            'Arb./Árboles': ['Arbusto', 'Árbol', 'Bambú'],
-            'Herb./Ornam.': ['Planta verde (foliage/ornamental)', 'Planta de flor', 'Planta aromática', 'Helecho', 'Bulbosa'],
-            'Especiales': ['Bonsái', 'Orquídea', 'Carnívora', 'Epífita', 'Tapizante', 'Planta acuática', 'Planta aérea']
-        };
-
-        const categoryStats = {};
-        Object.entries(typeStats).forEach(([type, count]) => {
-            let found = false;
-            for (const [category, types] of Object.entries(typeCategories)) {
-                if (types.includes(type)) {
-                    categoryStats[category] = (categoryStats[category] || 0) + count;
-                    found = true;
-                    break;
-                }
-            }
-            if (!found && type !== 'Sin tipo') {
-                categoryStats['Otros'] = (categoryStats['Otros'] || 0) + count;
-            }
-        });
-        if (typeStats['Sin tipo']) {
-            categoryStats['Sin tipo'] = typeStats['Sin tipo'];
-        }
-
         // Generar donut chart SVG para distribución por tipo
+        // Usar TODOS los tipos individuales, no categorías agrupadas
         const donutSize = 130;
         const radius = 45;
         const innerRadius = 28;
         const centerX = donutSize / 2;
         const centerY = donutSize / 2;
         
-        const sortedCategories = Object.entries(categoryStats)
-            .sort((a, b) => b[1] - a[1])
-            .slice(0, 5);
+        // Ordenar todos los tipos por cantidad (no solo top 5)
+        const sortedTypes = Object.entries(typeStats)
+            .sort((a, b) => b[1] - a[1]);
         
-        const colors = ['#4CAF50', '#8BC34A', '#CDDC39', '#FFC107', '#FF9800', '#FF5722'];
+        // Generar colores suficientes para todos los tipos
+        const baseColors = ['#4CAF50', '#8BC34A', '#CDDC39', '#FFC107', '#FF9800', '#FF5722', '#9C27B0', '#3F51B5', '#00BCD4', '#009688', '#8BC34A', '#CDDC39', '#FFEB3B', '#FF9800', '#F44336', '#E91E63', '#9C27B0', '#673AB7', '#3F51B5', '#2196F3'];
+        const colors = [];
+        for (let i = 0; i < sortedTypes.length; i++) {
+            colors.push(baseColors[i % baseColors.length]);
+        }
+        
         let donutPaths = '';
         let currentAngleDeg = -90;
         
-        sortedCategories.forEach(([category, count], index) => {
+        sortedTypes.forEach(([type, count], index) => {
             const percentage = (count / totalPlants) * 100;
             const angleDeg = (percentage / 100) * 360;
             const endAngleDeg = currentAngleDeg + angleDeg;
-            const color = colors[index % colors.length];
+            const color = colors[index];
             
             if (percentage > 0) {
                 // Convertir grados a radianes
@@ -1653,71 +1655,72 @@ class PlantManager {
             `;
         }
 
-        // Estadísticas de luz
-        const lightLabels = {
-            'Luz Intensa': 'Alta',
-            'Luz Directa': 'Alta',
-            'Luz Indirecta': 'Media',
-            'Sombra Parcial': 'Media',
-            'Sombra': 'Baja'
-        };
-        const lightGrouped = { Alta: 0, Media: 0, Baja: 0 };
-        Object.entries(lightStats).forEach(([light, count]) => {
-            const group = lightLabels[light] || 'Media';
-            lightGrouped[group] = (lightGrouped[group] || 0) + count;
-        });
-        const totalLight = Object.values(lightGrouped).reduce((a, b) => a + b, 0);
-        const lightAvg = totalLight > 0 ? 
-            (lightGrouped.Alta >= lightGrouped.Media && lightGrouped.Alta >= lightGrouped.Baja ? 'Alta' :
-             lightGrouped.Media >= lightGrouped.Baja ? 'Media' : 'Baja') : 'Sin datos';
+        // Estadísticas de temperatura (calculadas en el loop anterior)
+        // tempStats ya está calculado en el loop de plantas arriba
 
-        // Estadísticas de riego
-        const totalWatering = Object.values(wateringFreqStats).reduce((a, b) => a + b, 0);
-        const wateringAvg = totalWatering > 0 ?
-            (wateringFreqStats.alta >= wateringFreqStats.moderado && wateringFreqStats.alta >= wateringFreqStats.bajo ? 'Alto' :
-             wateringFreqStats.moderado >= wateringFreqStats.bajo ? 'Moderado' : 'Bajo') : 'Sin datos';
+        // Estadísticas de luz - usar valores reales
+        const sortedLightStats = Object.entries(lightStats)
+            .filter(([light]) => light !== 'Sin especificar')
+            .sort((a, b) => {
+                // Ordenar por orden lógico: Sombra, Sombra Parcial, Luz Indirecta, Luz Directa, Luz Intensa
+                const order = { 'Sombra': 1, 'Sombra Parcial': 2, 'Luz Indirecta': 3, 'Luz Directa': 4, 'Luz Intensa': 5 };
+                return (order[a[0]] || 99) - (order[b[0]] || 99);
+            });
+        const totalLight = Object.values(lightStats).reduce((a, b) => a + b, 0);
 
-        // Estadísticas de temperatura
-        const tempStats = {};
+        // Estadísticas de riego - calcular rangos reales de días
+        const wateringRanges = {};
         plants.forEach(plant => {
-            const temp = plant.temperature || 'Sin especificar';
-            tempStats[temp] = (tempStats[temp] || 0) + 1;
+            const spring = parseInt(plant.wateringSpring) || 0;
+            const summer = parseInt(plant.wateringSummer) || 0;
+            const autumn = parseInt(plant.wateringAutumn) || 0;
+            const winter = parseInt(plant.wateringWinter) || 0;
+            const avgDays = (spring + summer + autumn + winter) / 4;
+            
+            if (avgDays > 0) {
+                let range;
+                if (avgDays <= 3) {
+                    range = '1-3 días';
+                } else if (avgDays <= 7) {
+                    range = '4-7 días';
+                } else if (avgDays <= 14) {
+                    range = '8-14 días';
+                } else if (avgDays <= 21) {
+                    range = '15-21 días';
+                } else {
+                    range = '22+ días';
+                }
+                wateringRanges[range] = (wateringRanges[range] || 0) + 1;
+            }
         });
+        const sortedWateringRanges = Object.entries(wateringRanges)
+            .sort((a, b) => {
+                // Ordenar por número de días (extrayendo el primer número)
+                const numA = parseInt(a[0]) || 0;
+                const numB = parseInt(b[0]) || 0;
+                return numA - numB;
+            });
+        const totalWatering = Object.values(wateringRanges).reduce((a, b) => a + b, 0);
 
-        const tempLabels = {
-            'Muy Fría': 'Baja',
-            'Fría': 'Baja',
-            'Templada': 'Media',
-            'Cálida': 'Media',
-            'Caliente': 'Alta',
-            'Muy Caliente': 'Alta'
-        };
-        const tempGrouped = { Alta: 0, Media: 0, Baja: 0 };
-        Object.entries(tempStats).forEach(([temp, count]) => {
-            const group = tempLabels[temp] || 'Media';
-            tempGrouped[group] = (tempGrouped[group] || 0) + count;
-        });
-        const totalTemp = Object.values(tempGrouped).reduce((a, b) => a + b, 0);
-        const tempAvg = totalTemp > 0 ? 
-            (tempGrouped.Alta >= tempGrouped.Media && tempGrouped.Alta >= tempGrouped.Baja ? 'Alta' :
-             tempGrouped.Media >= tempGrouped.Baja ? 'Media' : 'Baja') : 'Sin datos';
+        // Estadísticas de temperatura - usar valores reales
+        const sortedTempStats = Object.entries(tempStats)
+            .filter(([temp]) => temp !== 'Sin especificar')
+            .sort((a, b) => {
+                // Ordenar por orden lógico: Muy Fría, Fría, Templada, Cálida, Caliente, Muy Caliente
+                const order = { 'Muy Fría': 1, 'Fría': 2, 'Templada': 3, 'Cálida': 4, 'Caliente': 5, 'Muy Caliente': 6 };
+                return (order[a[0]] || 99) - (order[b[0]] || 99);
+            });
+        const totalTemp = Object.values(tempStats).reduce((a, b) => a + b, 0);
 
-        // Estadísticas de humedad agrupadas
-        const humidityLabels = {
-            'BAJA (<40%)': 'Baja',
-            'MEDIA (40-60%)': 'Media',
-            'ALTA (60-80%)': 'Media',
-            'MUY ALTA (>80%)': 'Alta'
-        };
-        const humidityGrouped = { Alta: 0, Media: 0, Baja: 0 };
-        Object.entries(humidityStats).forEach(([humidity, count]) => {
-            const group = humidityLabels[humidity] || 'Media';
-            humidityGrouped[group] = (humidityGrouped[group] || 0) + count;
-        });
-        const totalHumidity = Object.values(humidityGrouped).reduce((a, b) => a + b, 0);
-        const humidityAvg = totalHumidity > 0 ? 
-            (humidityGrouped.Alta >= humidityGrouped.Media && humidityGrouped.Alta >= humidityGrouped.Baja ? 'Alta' :
-             humidityGrouped.Media >= humidityGrouped.Baja ? 'Media' : 'Baja') : 'Sin datos';
+        // Estadísticas de humedad - usar valores reales
+        const sortedHumidityStats = Object.entries(humidityStats)
+            .filter(([humidity]) => humidity !== 'Sin especificar')
+            .sort((a, b) => {
+                // Ordenar por orden lógico: BAJA, MEDIA, ALTA, MUY ALTA
+                const order = { 'BAJA (<40%)': 1, 'MEDIA (40-60%)': 2, 'ALTA (60-80%)': 3, 'MUY ALTA (>80%)': 4 };
+                return (order[a[0]] || 99) - (order[b[0]] || 99);
+            });
+        const totalHumidity = Object.values(humidityStats).reduce((a, b) => a + b, 0);
 
         dashboardContent.innerHTML = `
             <div style="margin-bottom: 15px; display: flex; justify-content: flex-end;">
@@ -1730,74 +1733,59 @@ class PlantManager {
                 <!-- Primera fila: 2 informes -->
                 <div class="dashboard-row dashboard-row-2">
                     <!-- Donut de distribución por tipo -->
-                    <div class="dashboard-panel">
+                    <div class="dashboard-panel dashboard-panel-horizontal">
                     <h3 class="dashboard-panel-title">Distribución por tipo</h3>
-                    <div class="dashboard-donut-wrapper">
-                        ${typeDonutSvg}
-                    </div>
-                    <div class="dashboard-compact-legend">
-                        ${sortedCategories.map(([category, count], index) => `
-                            <div class="dashboard-compact-legend-item">
-                                <span class="dashboard-compact-color" style="background: ${colors[index % colors.length]};"></span>
-                                <span>${this.escapeHtml(category)}: ${count} · ${Math.round((count / totalPlants) * 100)}%</span>
-                            </div>
-                        `).join('')}
+                    <div class="dashboard-horizontal-content">
+                        <div class="dashboard-compact-legend">
+                            ${sortedTypes.map(([type, count], index) => `
+                                <div class="dashboard-compact-legend-item">
+                                    <span class="dashboard-compact-color" style="background: ${colors[index]};"></span>
+                                    <span>${this.escapeHtml(type)}: ${count} · ${Math.round((count / totalPlants) * 100)}%</span>
+                                </div>
+                            `).join('')}
+                        </div>
+                        <div class="dashboard-donut-wrapper">
+                            ${typeDonutSvg}
+                        </div>
                     </div>
                 </div>
                 
                 <!-- Donut de salud -->
-                <div class="dashboard-panel">
+                <div class="dashboard-panel dashboard-panel-horizontal">
                     <h3 class="dashboard-panel-title">Estado de Salud</h3>
-                    <div class="dashboard-donut-wrapper">
-                        ${healthDonutSvg}
-                    </div>
-                    <div class="dashboard-compact-legend">
-                        <div class="dashboard-compact-legend-item">
-                            <span class="dashboard-compact-color" style="background: var(--accent-green);"></span>
-                            <span>Saludable: ${healthyPlants}</span>
+                    <div class="dashboard-horizontal-content">
+                        <div class="dashboard-compact-legend">
+                            <div class="dashboard-compact-legend-item">
+                                <span class="dashboard-compact-color" style="background: var(--accent-green);"></span>
+                                <span>Saludable: ${healthyPlants}</span>
+                            </div>
+                            <div class="dashboard-compact-legend-item">
+                                <span class="dashboard-compact-color" style="background: rgba(220, 53, 69, 0.8);"></span>
+                                <span>Mala salud: ${poorHealth}</span>
+                            </div>
                         </div>
-                        <div class="dashboard-compact-legend-item">
-                            <span class="dashboard-compact-color" style="background: rgba(220, 53, 69, 0.8);"></span>
-                            <span>Mala salud: ${poorHealth}</span>
+                        <div class="dashboard-donut-wrapper">
+                            ${healthDonutSvg}
                         </div>
                     </div>
                     </div>
                 </div>
                 
-                <!-- Segunda fila: 3 informes -->
-                <div class="dashboard-row dashboard-row-3">
+                <!-- Segunda fila: 2 informes -->
+                <div class="dashboard-row dashboard-row-2">
                     <!-- Estadísticas de Luz -->
                     <div class="dashboard-panel">
                     <h3 class="dashboard-panel-title">Luz</h3>
                     <div class="dashboard-progress-section">
-                        <div class="dashboard-progress-item">
-                            <span class="dashboard-progress-label">Alta</span>
-                            <div class="dashboard-progress-bar">
-                                <div class="dashboard-progress-fill" style="width: ${totalLight > 0 ? (lightGrouped.Alta / totalLight) * 100 : 0}%; background: var(--accent-green);"></div>
+                        ${sortedLightStats.length > 0 ? sortedLightStats.map(([light, count]) => `
+                            <div class="dashboard-progress-item">
+                                <span class="dashboard-progress-label">${this.escapeHtml(light)}</span>
+                                <div class="dashboard-progress-bar">
+                                    <div class="dashboard-progress-fill" style="width: ${totalLight > 0 ? (count / totalLight) * 100 : 0}%; background: var(--accent-green);"></div>
+                                </div>
+                                <span class="dashboard-progress-value">${count} · ${totalLight > 0 ? Math.round((count / totalLight) * 100) : 0}%</span>
                             </div>
-                            <span class="dashboard-progress-value">${lightGrouped.Alta} · ${totalLight > 0 ? Math.round((lightGrouped.Alta / totalLight) * 100) : 0}%</span>
-                        </div>
-                        <div class="dashboard-progress-item">
-                            <span class="dashboard-progress-label">Media</span>
-                            <div class="dashboard-progress-bar">
-                                <div class="dashboard-progress-fill" style="width: ${totalLight > 0 ? (lightGrouped.Media / totalLight) * 100 : 0}%; background: var(--accent-green);"></div>
-                            </div>
-                            <span class="dashboard-progress-value">${lightGrouped.Media} · ${totalLight > 0 ? Math.round((lightGrouped.Media / totalLight) * 100) : 0}%</span>
-                        </div>
-                        <div class="dashboard-progress-item">
-                            <span class="dashboard-progress-label">Baja</span>
-                            <div class="dashboard-progress-bar">
-                                <div class="dashboard-progress-fill" style="width: ${totalLight > 0 ? (lightGrouped.Baja / totalLight) * 100 : 0}%; background: var(--accent-green);"></div>
-                            </div>
-                            <span class="dashboard-progress-value">${lightGrouped.Baja} · ${totalLight > 0 ? Math.round((lightGrouped.Baja / totalLight) * 100) : 0}%</span>
-                        </div>
-                        <div class="dashboard-progress-item dashboard-progress-avg">
-                            <span class="dashboard-progress-label">Promedio: ${lightAvg}</span>
-                            <div class="dashboard-progress-bar">
-                                <div class="dashboard-progress-fill" style="width: ${totalLight > 0 ? 
-                                    (lightAvg === 'Alta' ? 100 : lightAvg === 'Media' ? 50 : 25) : 0}%; background: var(--accent-green);"></div>
-                            </div>
-                        </div>
+                        `).join('') : '<p style="color: var(--text-muted); text-align: center;">Sin datos</p>'}
                     </div>
                     </div>
                     
@@ -1805,69 +1793,50 @@ class PlantManager {
                     <div class="dashboard-panel">
                     <h3 class="dashboard-panel-title">Riego</h3>
                     <div class="dashboard-progress-section">
-                        <div class="dashboard-progress-item">
-                            <span class="dashboard-progress-label">Alto</span>
-                            <div class="dashboard-progress-bar">
-                                <div class="dashboard-progress-fill" style="width: ${totalWatering > 0 ? (wateringFreqStats.alta / totalWatering) * 100 : 0}%; background: var(--water-blue);"></div>
+                        ${sortedWateringRanges.length > 0 ? sortedWateringRanges.map(([range, count]) => `
+                            <div class="dashboard-progress-item">
+                                <span class="dashboard-progress-label">${this.escapeHtml(range)}</span>
+                                <div class="dashboard-progress-bar">
+                                    <div class="dashboard-progress-fill" style="width: ${totalWatering > 0 ? (count / totalWatering) * 100 : 0}%; background: var(--water-blue);"></div>
+                                </div>
+                                <span class="dashboard-progress-value">${count} · ${totalWatering > 0 ? Math.round((count / totalWatering) * 100) : 0}%</span>
                             </div>
-                            <span class="dashboard-progress-value">${wateringFreqStats.alta} · ${totalWatering > 0 ? Math.round((wateringFreqStats.alta / totalWatering) * 100) : 0}%</span>
-                        </div>
-                        <div class="dashboard-progress-item">
-                            <span class="dashboard-progress-label">Moderado</span>
-                            <div class="dashboard-progress-bar">
-                                <div class="dashboard-progress-fill" style="width: ${totalWatering > 0 ? (wateringFreqStats.moderado / totalWatering) * 100 : 0}%; background: var(--water-blue);"></div>
+                        `).join('') : '<p style="color: var(--text-muted); text-align: center;">Sin datos</p>'}
+                    </div>
+                    </div>
+                </div>
+                
+                <!-- Tercera fila: 2 informes -->
+                <div class="dashboard-row dashboard-row-2">
+                    <!-- Estadísticas de Temperatura -->
+                    <div class="dashboard-panel">
+                    <h3 class="dashboard-panel-title">Temperatura</h3>
+                    <div class="dashboard-progress-section">
+                        ${sortedTempStats.length > 0 ? sortedTempStats.map(([temp, count]) => `
+                            <div class="dashboard-progress-item">
+                                <span class="dashboard-progress-label">${this.escapeHtml(temp)}</span>
+                                <div class="dashboard-progress-bar">
+                                    <div class="dashboard-progress-fill" style="width: ${totalTemp > 0 ? (count / totalTemp) * 100 : 0}%; background: #FF6B35;"></div>
+                                </div>
+                                <span class="dashboard-progress-value">${count} · ${totalTemp > 0 ? Math.round((count / totalTemp) * 100) : 0}%</span>
                             </div>
-                            <span class="dashboard-progress-value">${wateringFreqStats.moderado} · ${totalWatering > 0 ? Math.round((wateringFreqStats.moderado / totalWatering) * 100) : 0}%</span>
-                        </div>
-                        <div class="dashboard-progress-item">
-                            <span class="dashboard-progress-label">Bajo</span>
-                            <div class="dashboard-progress-bar">
-                                <div class="dashboard-progress-fill" style="width: ${totalWatering > 0 ? (wateringFreqStats.bajo / totalWatering) * 100 : 0}%; background: var(--water-blue);"></div>
-                            </div>
-                            <span class="dashboard-progress-value">${wateringFreqStats.bajo} · ${totalWatering > 0 ? Math.round((wateringFreqStats.bajo / totalWatering) * 100) : 0}%</span>
-                        </div>
-                        <div class="dashboard-progress-item dashboard-progress-avg">
-                            <span class="dashboard-progress-label">Promedio: ${wateringAvg}</span>
-                            <div class="dashboard-progress-bar">
-                                <div class="dashboard-progress-fill" style="width: ${totalWatering > 0 ? 
-                                    (wateringAvg === 'Alto' ? 100 : wateringAvg === 'Moderado' ? 50 : 25) : 0}%; background: var(--water-blue);"></div>
-                            </div>
-                        </div>
+                        `).join('') : '<p style="color: var(--text-muted); text-align: center;">Sin datos</p>'}
                     </div>
                     </div>
                     
-                    <!-- Estadísticas de Temperatura y Humedad -->
+                    <!-- Estadísticas de Humedad -->
                     <div class="dashboard-panel">
-                    <h3 class="dashboard-panel-title">Temperatura y Humedad</h3>
+                    <h3 class="dashboard-panel-title">Humedad</h3>
                     <div class="dashboard-progress-section">
-                        <div class="dashboard-progress-item">
-                            <span class="dashboard-progress-label">Alta</span>
-                            <div class="dashboard-progress-bar">
-                                <div class="dashboard-progress-fill" style="width: ${totalTemp > 0 ? (tempGrouped.Alta / totalTemp) * 100 : 0}%; background: #FF6B35;"></div>
+                        ${sortedHumidityStats.length > 0 ? sortedHumidityStats.map(([humidity, count]) => `
+                            <div class="dashboard-progress-item">
+                                <span class="dashboard-progress-label">${this.escapeHtml(humidity)}</span>
+                                <div class="dashboard-progress-bar">
+                                    <div class="dashboard-progress-fill" style="width: ${totalHumidity > 0 ? (count / totalHumidity) * 100 : 0}%; background: var(--water-blue);"></div>
+                                </div>
+                                <span class="dashboard-progress-value">${count} · ${totalHumidity > 0 ? Math.round((count / totalHumidity) * 100) : 0}%</span>
                             </div>
-                            <span class="dashboard-progress-value">T: ${tempGrouped.Alta} | H: ${humidityGrouped.Alta}</span>
-                        </div>
-                        <div class="dashboard-progress-item">
-                            <span class="dashboard-progress-label">Media</span>
-                            <div class="dashboard-progress-bar">
-                                <div class="dashboard-progress-fill" style="width: ${totalTemp > 0 ? (tempGrouped.Media / totalTemp) * 100 : 0}%; background: #FF6B35;"></div>
-                            </div>
-                            <span class="dashboard-progress-value">T: ${tempGrouped.Media} | H: ${humidityGrouped.Media}</span>
-                        </div>
-                        <div class="dashboard-progress-item">
-                            <span class="dashboard-progress-label">Baja</span>
-                            <div class="dashboard-progress-bar">
-                                <div class="dashboard-progress-fill" style="width: ${totalTemp > 0 ? (tempGrouped.Baja / totalTemp) * 100 : 0}%; background: #FF6B35;"></div>
-                            </div>
-                            <span class="dashboard-progress-value">T: ${tempGrouped.Baja} | H: ${humidityGrouped.Baja}</span>
-                        </div>
-                        <div class="dashboard-progress-item dashboard-progress-avg">
-                            <span class="dashboard-progress-label">Promedio: Temp ${tempAvg} | Hum ${humidityAvg}</span>
-                            <div class="dashboard-progress-bar">
-                                <div class="dashboard-progress-fill" style="width: ${totalTemp > 0 ? 
-                                    (tempAvg === 'Alta' ? 100 : tempAvg === 'Media' ? 50 : 25) : 0}%; background: #FF6B35;"></div>
-                            </div>
-                        </div>
+                        `).join('') : '<p style="color: var(--text-muted); text-align: center;">Sin datos</p>'}
                     </div>
                     </div>
                 </div>
@@ -1890,8 +1859,8 @@ class PlantManager {
                 if (panel && panel.querySelector('.dashboard-panel-title').textContent.includes('tipo')) {
                     item.addEventListener('click', () => {
                         const text = item.textContent.trim();
-                        const category = text.split(':')[0].trim();
-                        this.filterByCategory(category);
+                        const type = text.split(':')[0].trim();
+                        this.filterByType(type);
                     });
                 }
             });
@@ -1924,24 +1893,14 @@ class PlantManager {
         }, 100);
     }
 
-    filterByCategory(category) {
-        const typeCategories = {
-            'Suculentas': ['Suculenta', 'Cactus'],
-            'Trep./Colg.': ['Trepadora/enredadera', 'Colgante'],
-            'Palmeras': ['Palmera'],
-            'Arb./Árboles': ['Arbusto', 'Árbol', 'Bambú'],
-            'Herb./Ornam.': ['Planta verde (foliage/ornamental)', 'Planta de flor', 'Planta aromática', 'Helecho', 'Bulbosa'],
-            'Especiales': ['Bonsái', 'Orquídea', 'Carnívora', 'Epífita', 'Tapizante', 'Planta acuática', 'Planta aérea']
-        };
-        
-        const types = typeCategories[category] || [category];
+    filterByType(type) {
         const filtered = this.plants.filter(plant => {
-            const type = plant.type || 'Sin tipo';
-            return types.includes(type) || (category === 'Sin tipo' && !plant.type);
+            const plantType = plant.type || 'Sin tipo';
+            return plantType === type || (type === 'Sin tipo' && !plant.type);
         });
         
         this.renderPlants(filtered);
-        this.showNotification(`Filtrado por: ${category}`, 'success');
+        this.showNotification(`Filtrado por: ${type}`, 'success');
     }
 
     filterByLight(lightLevel) {
