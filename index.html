@@ -10,148 +10,31 @@
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
 </head>
 <body>
     <div class="container">
         <!-- Header -->
         <header class="glass-panel">
-            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
-                <div>
-                    <h1>🌿 My Green Diary</h1>
-                    <p class="subtitle">Tu diario personal de plantas</p>
-                </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; margin: 0; padding: 0;">
+                <img src="img/My Green Diary Logo.png" alt="My Green Diary" class="header-logo">
+                <button id="changeBgBtn" class="btn-action" title="Cambiar fondo de pantalla">
+                    <img src="img/icons/bg-change.svg" alt="Fondo" class="btn-action-icon">
+                </button>
             </div>
         </header>
 
-        <!-- Botón para mostrar/ocultar formulario -->
-        <button id="toggleFormBtn" class="btn-primary glass-panel">
-            <span id="btnText">➕ Agregar Nueva Planta</span>
-        </button>
-
-        <!-- Formulario para nueva planta -->
-        <section id="plantFormSection" class="glass-panel form-section hidden">
-            <h2>Nueva Planta</h2>
-            <form id="plantForm">
-                <div class="form-row-grid">
-                    <div class="form-group">
-                        <label for="plantName">Nombre de la Planta *</label>
-                        <input type="text" id="plantName" required placeholder="Ej: Monstera Deliciosa">
-                    </div>
-
-                    <div class="form-group">
-                        <label for="plantSpecies">Especie *</label>
-                        <input type="text" id="plantSpecies" required placeholder="Ej: Monstera deliciosa">
-                    </div>
-
-                    <div class="form-group">
-                        <label for="plantVariety">Variación</label>
-                        <input type="text" id="plantVariety" placeholder="Ej: Variegata, Albo, etc.">
-                    </div>
-
-                    <div class="form-group">
-                        <label for="plantAcquisitionDate">Fecha de Adquisición</label>
-                        <input type="date" id="plantAcquisitionDate">
-                    </div>
-                </div>
-
-                <div class="form-group">
-                    <label for="plantPhoto">Foto de la Planta</label>
-                    <div class="photo-options">
-                        <div class="photo-option-tabs">
-                            <button type="button" class="photo-tab active" data-tab="upload">📁 Subir Archivo</button>
-                            <button type="button" class="photo-tab" data-tab="url">🔗 Usar URL</button>
-                        </div>
-                        <div id="uploadTab" class="photo-tab-content active">
-                            <input type="file" id="plantPhotoFile" accept="image/*" class="file-input">
-                            <small>Selecciona una imagen desde tu computadora (JPG, PNG, etc.)</small>
-                            <div id="photoPreview" class="photo-preview hidden">
-                                <img id="previewImage" src="" alt="Vista previa">
-                                <button type="button" id="removePreview" class="btn-small btn-secondary">❌ Eliminar</button>
-                            </div>
-                        </div>
-                        <div id="urlTab" class="photo-tab-content hidden">
-                            <input type="url" id="plantPhoto" placeholder="https://ejemplo.com/foto.jpg">
-                            <small>O ingresa la URL de una imagen en internet</small>
-                        </div>
-                    </div>
-                    <small style="margin-top: 10px; display: block;">Si no seleccionas ninguna, se usará una imagen por defecto</small>
-                </div>
-
-                <div class="form-group">
-                    <label for="plantDescription">Descripción</label>
-                    <textarea id="plantDescription" rows="3" placeholder="Descripción de la planta..."></textarea>
-                </div>
-
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="plantLight">Luz Requerida</label>
-                        <select id="plantLight">
-                            <option value="">Seleccionar...</option>
-                            <option value="Sombra">Sombra</option>
-                            <option value="Sombra Parcial">Sombra Parcial</option>
-                            <option value="Luz Indirecta">Luz Indirecta</option>
-                            <option value="Luz Directa">Luz Directa</option>
-                            <option value="Luz Intensa">Luz Intensa</option>
-                        </select>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="plantTemperature">Temperatura (°C)</label>
-                        <input type="text" id="plantTemperature" placeholder="Ej: 18-24°C">
-                    </div>
-                </div>
-
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="plantHumidity">Humedad</label>
-                        <select id="plantHumidity">
-                            <option value="">Seleccionar...</option>
-                            <option value="BAJA (<40%)">BAJA (<40%)</option>
-                            <option value="MEDIA (40-60%)">MEDIA (40-60%)</option>
-                            <option value="ALTA (60-80%)">ALTA (60-80%)</option>
-                            <option value="MUY ALTA (>80%)">MUY ALTA (>80%)</option>
-                        </select>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="plantSubstrate">Mezcla de Sustrato</label>
-                        <input type="text" id="plantSubstrate" placeholder="Ej: Turba, perlita, vermiculita">
-                    </div>
-                </div>
-
-                <div class="form-group">
-                    <label>Frecuencia de Riego por Estación</label>
-                    <div class="form-row-grid">
-                        <div class="form-group">
-                            <label for="plantWateringSpring">Primavera</label>
-                            <input type="text" id="plantWateringSpring" placeholder="Ej: Cada 5-7 días">
-                        </div>
-                        <div class="form-group">
-                            <label for="plantWateringSummer">Verano</label>
-                            <input type="text" id="plantWateringSummer" placeholder="Ej: Cada 3-5 días">
-                        </div>
-                        <div class="form-group">
-                            <label for="plantWateringAutumn">Otoño</label>
-                            <input type="text" id="plantWateringAutumn" placeholder="Ej: Cada 7-10 días">
-                        </div>
-                        <div class="form-group">
-                            <label for="plantWateringWinter">Invierno</label>
-                            <input type="text" id="plantWateringWinter" placeholder="Ej: Cada 10-14 días">
-                        </div>
-                    </div>
-                </div>
-
-                <div class="form-actions">
-                    <button type="submit" class="btn-primary">Guardar Planta</button>
-                    <button type="button" id="cancelFormBtn" class="btn-secondary">Cancelar</button>
-                </div>
-            </form>
-        </section>
-
         <!-- Filtros y búsqueda -->
         <section class="glass-panel filters-section">
-            <div class="search-box">
-                <input type="text" id="searchInput" placeholder="🔍 Buscar plantas...">
+            <div class="search-box" style="display: flex; gap: 10px; align-items: center;">
+                <button id="openPlantModalBtn" class="btn-secondary btn-small">
+                    <img src="img/icons/plus.svg" alt="Agregar" class="btn-icon">
+                    Nueva Planta
+                </button>
+                <div style="position: relative; flex: 1;">
+                    <img src="img/icons/search.svg" alt="Buscar" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); width: 18px; height: 18px; filter: brightness(0) invert(1); opacity: 0.7; z-index: 1; pointer-events: none;">
+                    <input type="text" id="searchInput" placeholder="Buscar plantas..." style="flex: 1; padding-left: 38px;">
+                </div>
             </div>
             <div class="filter-buttons">
                 <button class="filter-btn active" data-filter="all">Todas</button>
@@ -159,7 +42,9 @@
                 <button class="filter-btn" data-filter="recent">Recientes</button>
             </div>
             <div class="advanced-filters">
-                <button id="toggleFiltersBtn" class="btn-secondary btn-small">🔽 Filtros Avanzados</button>
+                <button id="toggleFiltersBtn" class="btn-secondary btn-small">
+                    <img src="img/icons/filter.svg" alt="Filtros" class="btn-icon" id="toggleFilterIcon"> Filtros Avanzados
+                </button>
                 <div id="advancedFiltersPanel" class="advanced-filters-panel hidden">
                     <div class="form-row-grid">
                         <div class="form-group">
@@ -205,12 +90,184 @@
             <!-- Las plantas se agregarán aquí dinámicamente -->
         </section>
 
+        <!-- Modal para nueva/editar planta -->
+        <div id="plantFormModal" class="modal hidden">
+            <div class="modal-content glass-panel" style="max-width: 800px;">
+                <span class="close-modal" id="closePlantFormModal">&times;</span>
+                <h2 id="plantFormModalTitle">Nueva Planta</h2>
+                <form id="plantForm">
+                    <div class="form-row-grid">
+                        <div class="form-group">
+                            <label for="plantName">Nombre de la Planta *</label>
+                            <input type="text" id="plantName" required placeholder="Ej: Monstera Deliciosa">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="plantSpecies">Especie *</label>
+                            <input type="text" id="plantSpecies" required placeholder="Ej: Monstera deliciosa">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="plantVariety">Variación</label>
+                            <input type="text" id="plantVariety" placeholder="Ej: Variegata, Albo, etc.">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="plantAcquisitionDate">
+                                <img src="img/icons/date.svg" alt="Fecha" class="label-icon"> Fecha de Adquisición
+                            </label>
+                            <input type="date" id="plantAcquisitionDate">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="plantDescription">Descripción</label>
+                        <textarea id="plantDescription" rows="3" placeholder="Descripción de la planta..."></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="plantPhoto">
+                            <img src="img/icons/photo.svg" alt="Foto" class="label-icon"> Foto de la Planta
+                        </label>
+                        <div class="photo-options">
+                            <div id="uploadTab" class="photo-tab-content active">
+                                <input type="file" id="plantPhotoFile" accept="image/*" class="file-input">
+                                <small>Selecciona una imagen desde tu computadora (JPG, PNG, etc.)</small>
+                                <div id="photoPreview" class="photo-preview hidden">
+                                    <img id="previewImage" src="" alt="Vista previa">
+                                    <button type="button" id="removePreview" class="btn-small btn-secondary">Eliminar</button>
+                                </div>
+                            </div>
+                        </div>
+                        <small style="margin-top: 10px; display: block;">Si no seleccionas ninguna, se usará una imagen por defecto</small>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="plantLight">
+                                <img src="img/icons/sun.svg" alt="Luz" class="label-icon"> Luz Requerida
+                            </label>
+                            <select id="plantLight">
+                                <option value="">Seleccionar...</option>
+                                <option value="Sombra">Sombra</option>
+                                <option value="Sombra Parcial">Sombra Parcial</option>
+                                <option value="Luz Indirecta">Luz Indirecta</option>
+                                <option value="Luz Directa">Luz Directa</option>
+                                <option value="Luz Intensa">Luz Intensa</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="plantTemperature">
+                                <img src="img/icons/temperature.svg" alt="Temperatura" class="label-icon"> Temperatura (°C)
+                            </label>
+                            <input type="text" id="plantTemperature" placeholder="Ej: 18-24°C">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="plantHumidity">
+                                <img src="img/icons/humidity.svg" alt="Humedad" class="label-icon"> Humedad
+                            </label>
+                            <select id="plantHumidity">
+                                <option value="">Seleccionar...</option>
+                                <option value="BAJA (<40%)">BAJA (<40%)</option>
+                                <option value="MEDIA (40-60%)">MEDIA (40-60%)</option>
+                                <option value="ALTA (60-80%)">ALTA (60-80%)</option>
+                                <option value="MUY ALTA (>80%)">MUY ALTA (>80%)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="plantSubstrate">Mezcla de Sustrato</label>
+                        <div id="substrateSelector" class="substrate-selector">
+                            <div class="substrate-controls">
+                                <div class="substrate-list" id="substrateList"></div>
+                                <div class="substrate-chart-container">
+                                    <div class="substrate-chart-label">Mezcla Actual</div>
+                                    <svg id="substrateChart" class="substrate-chart" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+                                        <circle cx="100" cy="100" r="80" fill="#1a3a1a" stroke="rgba(255,255,255,0.3)" stroke-width="2"/>
+                                        <text x="100" y="100" text-anchor="middle" dominant-baseline="middle" fill="rgba(255,255,255,0.7)" font-size="14" font-weight="600">0%</text>
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Frecuencia de Riego por Estación</label>
+                        <div class="form-row-grid">
+                            <div class="form-group">
+                                <label for="plantWateringSpring">Primavera</label>
+                                <input type="text" id="plantWateringSpring" placeholder="Ej: Cada 5-7 días">
+                            </div>
+                            <div class="form-group">
+                                <label for="plantWateringSummer">Verano</label>
+                                <input type="text" id="plantWateringSummer" placeholder="Ej: Cada 3-5 días">
+                            </div>
+                            <div class="form-group">
+                                <label for="plantWateringAutumn">Otoño</label>
+                                <input type="text" id="plantWateringAutumn" placeholder="Ej: Cada 7-10 días">
+                            </div>
+                            <div class="form-group">
+                                <label for="plantWateringWinter">Invierno</label>
+                                <input type="text" id="plantWateringWinter" placeholder="Ej: Cada 10-14 días">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="submit" class="btn-primary">
+                            <img src="img/icons/save.svg" alt="Guardar" class="btn-icon"> Guardar Planta
+                        </button>
+                        <button type="button" id="cancelFormBtn" class="btn-secondary">
+                            <img src="img/icons/cancel.svg" alt="Cancelar" class="btn-icon"> Cancelar
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
         <!-- Modal para editar/ver detalles -->
         <div id="plantModal" class="modal hidden">
-            <div class="modal-content glass-panel">
+            <div class="modal-content glass-panel plant-modal-content">
                 <span class="close-modal">&times;</span>
                 <div id="modalBody">
                     <!-- Contenido dinámico -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal para leyenda de sustratos -->
+        <div id="substrateLegendModal" class="modal hidden">
+            <div class="modal-content glass-panel substrate-legend-modal-content">
+                <span class="close-modal" onclick="document.getElementById('substrateLegendModal').classList.add('hidden')">&times;</span>
+                <h2 style="color: var(--light-green); margin-bottom: 20px;">Leyenda de Sustratos</h2>
+                <div id="substrateLegendList" class="substrate-legend-list"></div>
+            </div>
+        </div>
+
+        <!-- Modal para cambiar fondo -->
+        <div id="bgModal" class="modal hidden">
+            <div class="modal-content glass-panel bg-modal-content">
+                <span class="close-modal close-bg-modal">&times;</span>
+                <h2 style="margin-bottom: 20px; color: var(--light-green);">🎨 Cambiar Fondo de Pantalla</h2>
+                <div class="bg-options">
+                    <div class="bg-option" data-bg="palm-tree-leaves">
+                        <img src="img/bgs/palm-tree-leaves.jpg" alt="Palmeras">
+                        <p>Palmeras</p>
+                        <span class="bg-check">✓</span>
+                    </div>
+                    <div class="bg-option" data-bg="leaves-close-up">
+                        <img src="img/bgs/leaves-close-up.jpg" alt="Hojas Cercanas">
+                        <p>Hojas Cercanas</p>
+                        <span class="bg-check">✓</span>
+                    </div>
+                    <div class="bg-option" data-bg="leaves-red-fruits">
+                        <img src="img/bgs/leaves-red-fruits.jpg" alt="Hojas y Frutos">
+                        <p>Hojas y Frutos</p>
+                        <span class="bg-check">✓</span>
+                    </div>
                 </div>
             </div>
         </div>
