@@ -88,6 +88,243 @@ header > div:first-child {
     font-size: 0.9rem;
 }
 
+/* Dashboard */
+.dashboard-section {
+    margin-bottom: 30px;
+}
+
+.dashboard-section h2 {
+    margin-bottom: 15px;
+    font-size: 1.3rem;
+}
+
+.dashboard-compact-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 20px;
+}
+
+.dashboard-full-width-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+}
+
+@media (max-width: 768px) {
+    .dashboard-full-width-grid {
+        grid-template-columns: repeat(6, 1fr);
+    }
+    
+    /* Primera fila: 2 paneles, cada uno ocupa 3 columnas (50% cada uno) */
+    .dashboard-full-width-grid .dashboard-panel:nth-child(2),
+    .dashboard-full-width-grid .dashboard-panel:nth-child(3) {
+        grid-column: span 3;
+    }
+    
+    /* Segunda fila: 3 paneles, cada uno ocupa 2 columnas (33.33% cada uno) */
+    .dashboard-full-width-grid .dashboard-panel:nth-child(4),
+    .dashboard-full-width-grid .dashboard-panel:nth-child(5),
+    .dashboard-full-width-grid .dashboard-panel:nth-child(6) {
+        grid-column: span 2;
+    }
+}
+
+@media (max-width: 480px) {
+    .dashboard-full-width-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .dashboard-full-width-grid .dashboard-panel:nth-child(2),
+    .dashboard-full-width-grid .dashboard-panel:nth-child(3),
+    .dashboard-full-width-grid .dashboard-panel:nth-child(4),
+    .dashboard-full-width-grid .dashboard-panel:nth-child(5),
+    .dashboard-full-width-grid .dashboard-panel:nth-child(6) {
+        grid-column: 1;
+    }
+}
+
+.dashboard-category-cards {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    grid-column: 1 / -1;
+}
+
+.dashboard-category-card {
+    background: rgba(10, 31, 10, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 10px;
+    padding: 16px;
+    text-align: center;
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.dashboard-category-card:hover {
+    transform: translateY(-3px);
+    border-color: rgba(255, 255, 255, 0.5);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+    background: rgba(10, 31, 10, 0.6);
+}
+
+.dashboard-category-label {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+    font-weight: 500;
+}
+
+.dashboard-category-value {
+    font-size: 2.2rem;
+    font-weight: 700;
+    color: var(--light-green);
+}
+
+.dashboard-panel {
+    background: rgba(10, 31, 10, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 12px;
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 280px;
+}
+
+.dashboard-panel-title {
+    color: var(--light-green);
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 15px;
+    text-align: center;
+}
+
+.dashboard-donut-wrapper {
+    margin: 12px 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.dashboard-compact-legend {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+    margin-top: 12px;
+}
+
+.dashboard-compact-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.8rem;
+    color: var(--text-light);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    transition: background 0.2s ease;
+}
+
+.dashboard-compact-legend-item:hover {
+    background: rgba(26, 58, 26, 0.4);
+}
+
+.dashboard-compact-color {
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    flex-shrink: 0;
+}
+
+.dashboard-progress-section {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.dashboard-progress-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    transition: background 0.2s ease;
+}
+
+.dashboard-progress-item:hover {
+    background: rgba(26, 58, 26, 0.3);
+}
+
+.dashboard-progress-label {
+    min-width: 70px;
+    color: var(--text-muted);
+    font-weight: 500;
+    font-size: 0.75rem;
+}
+
+.dashboard-progress-bar {
+    flex: 1;
+    height: 14px;
+    background: rgba(10, 31, 10, 0.6);
+    border-radius: 7px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.dashboard-progress-fill {
+    height: 100%;
+    border-radius: 7px;
+    transition: width 0.3s ease;
+}
+
+.dashboard-progress-value {
+    min-width: 50px;
+    text-align: right;
+    color: var(--text-light);
+    font-weight: 600;
+    font-size: 0.75rem;
+}
+
+.dashboard-progress-avg {
+    margin-top: 5px;
+    padding-top: 5px;
+    border-top: 1px solid rgba(74, 154, 74, 0.2);
+}
+
+.dashboard-progress-avg .dashboard-progress-label {
+    color: var(--light-green);
+    font-weight: 600;
+}
+
+@media (max-width: 1024px) {
+    .dashboard-compact-grid {
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    }
+    
+    .dashboard-category-cards {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+@media (max-width: 768px) {
+    .dashboard-compact-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .dashboard-category-cards {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .dashboard-category-value {
+        font-size: 1.5rem;
+    }
+}
+
 /* Botones */
 .btn-primary, .btn-secondary {
     padding: 12px 24px;
@@ -136,16 +373,6 @@ header > div:first-child {
 }
 
 /* Formulario */
-.form-section {
-    margin-bottom: 30px;
-}
-
-.form-section h2 {
-    margin-bottom: 20px;
-    color: var(--light-green);
-    font-size: 1.8rem;
-}
-
 .form-group {
     margin-bottom: 20px;
 }
@@ -1498,6 +1725,9 @@ small {
 }
 
 .substrate-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
     max-height: 340px;
     overflow-y: auto;
     padding-right: 10px;
@@ -1519,15 +1749,6 @@ small {
 
 .substrate-list::-webkit-scrollbar-thumb:hover {
     background: rgba(74, 154, 74, 0.7);
-}
-
-.substrate-list {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    max-height: 340px;
-    overflow-y: auto;
-    padding-right: 10px;
 }
 
 .substrate-item {

@@ -698,6 +698,14 @@ class PlantManager {
                 });
             });
 
+            // Botón de quitar todos los filtros
+            const clearAllFiltersBtn = document.getElementById('clearAllFiltersBtn');
+            if (clearAllFiltersBtn) {
+                clearAllFiltersBtn.addEventListener('click', () => {
+                    this.clearAllFilters();
+                });
+            }
+
             // Modal
             const plantModal = document.getElementById('plantModal');
             if (plantModal) {
@@ -1458,9 +1466,516 @@ class PlantManager {
     }
 
     // Renderizado
+    renderDashboard(plantsToAnalyze = null) {
+        const dashboardContent = document.getElementById('dashboardContent');
+        if (!dashboardContent) return;
+
+        // Usar las plantas proporcionadas o todas las plantas
+        const plants = plantsToAnalyze !== null ? plantsToAnalyze : this.plants;
+
+        // El dashboard siempre se muestra, incluso si no hay plantas
+        // Si no hay plantas, se mostrará con valores en 0
+
+        // Calcular estadísticas basadas en las plantas proporcionadas
+        let totalPlants = plants.length;
+        let needsWater = 0;
+        let poorHealth = 0;
+        let recentPlants = 0;
+        let typeStats = {};
+        let lightStats = {};
+        let humidityStats = {};
+        let wateringFreqStats = { alta: 0, moderado: 0, bajo: 0 };
+
+        plants.forEach(plant => {
+            const normalized = this.normalizePlantData(plant);
+            const wateringDates = normalized.wateringDates || [];
+            const lastWateringDate = wateringDates.length > 0 ? wateringDates[0] : null;
+            const daysSinceWatering = lastWateringDate ? this.daysSince(lastWateringDate) : null;
+            
+            if (daysSinceWatering !== null && daysSinceWatering >= 7) {
+                needsWater++;
+            } else if (!lastWateringDate) {
+                needsWater++;
+            }
+            
+            if (plant.poorHealth) {
+                poorHealth++;
+            }
+            
+            if (plant.createdAt && this.daysSince(plant.createdAt) <= 7) {
+                recentPlants++;
+            }
+            
+            // Estadísticas por tipo
+            const type = plant.type || 'Sin tipo';
+            typeStats[type] = (typeStats[type] || 0) + 1;
+            
+            // Estadísticas por luz
+            const light = plant.light || 'Sin especificar';
+            lightStats[light] = (lightStats[light] || 0) + 1;
+            
+            // Estadísticas por humedad
+            const humidity = plant.humidity || 'Sin especificar';
+            humidityStats[humidity] = (humidityStats[humidity] || 0) + 1;
+            
+            // Analizar frecuencia de riego (promedio de las 4 estaciones)
+            const spring = parseInt(plant.wateringSpring) || 0;
+            const summer = parseInt(plant.wateringSummer) || 0;
+            const autumn = parseInt(plant.wateringAutumn) || 0;
+            const winter = parseInt(plant.wateringWinter) || 0;
+            const avgDays = (spring + summer + autumn + winter) / 4;
+            if (avgDays > 0) {
+                if (avgDays <= 5) {
+                    wateringFreqStats.alta++;
+                } else if (avgDays <= 10) {
+                    wateringFreqStats.moderado++;
+                } else {
+                    wateringFreqStats.bajo++;
+                }
+            }
+        });
+
+        const healthyPlants = totalPlants - poorHealth;
+        const healthPercentage = totalPlants > 0 ? Math.round((healthyPlants / totalPlants) * 100) : 0;
+
+        // Agrupar tipos en categorías más compactas
+        const typeCategories = {
+            'Suculentas': ['Suculenta', 'Cactus'],
+            'Trep./Colg.': ['Trepadora/enredadera', 'Colgante'],
+            'Palmeras': ['Palmera'],
+            'Arb./Árboles': ['Arbusto', 'Árbol', 'Bambú'],
+            'Herb./Ornam.': ['Planta verde (foliage/ornamental)', 'Planta de flor', 'Planta aromática', 'Helecho', 'Bulbosa'],
+            'Especiales': ['Bonsái', 'Orquídea', 'Carnívora', 'Epífita', 'Tapizante', 'Planta acuática', 'Planta aérea']
+        };
+
+        const categoryStats = {};
+        Object.entries(typeStats).forEach(([type, count]) => {
+            let found = false;
+            for (const [category, types] of Object.entries(typeCategories)) {
+                if (types.includes(type)) {
+                    categoryStats[category] = (categoryStats[category] || 0) + count;
+                    found = true;
+                    break;
+                }
+            }
+            if (!found && type !== 'Sin tipo') {
+                categoryStats['Otros'] = (categoryStats['Otros'] || 0) + count;
+            }
+        });
+        if (typeStats['Sin tipo']) {
+            categoryStats['Sin tipo'] = typeStats['Sin tipo'];
+        }
+
+        // Generar donut chart SVG para distribución por tipo
+        const donutSize = 130;
+        const radius = 45;
+        const innerRadius = 28;
+        const centerX = donutSize / 2;
+        const centerY = donutSize / 2;
+        
+        const sortedCategories = Object.entries(categoryStats)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 5);
+        
+        const colors = ['#4CAF50', '#8BC34A', '#CDDC39', '#FFC107', '#FF9800', '#FF5722'];
+        let donutPaths = '';
+        let currentAngleDeg = -90;
+        
+        sortedCategories.forEach(([category, count], index) => {
+            const percentage = (count / totalPlants) * 100;
+            const angleDeg = (percentage / 100) * 360;
+            const endAngleDeg = currentAngleDeg + angleDeg;
+            const color = colors[index % colors.length];
+            
+            if (percentage > 0) {
+                // Convertir grados a radianes
+                const startAngleRad = (currentAngleDeg * Math.PI) / 180;
+                const endAngleRad = (endAngleDeg * Math.PI) / 180;
+                donutPaths += `<path d="${this.createDonutSlice(centerX, centerY, innerRadius, radius, startAngleRad, endAngleRad)}" fill="${color}"/>`;
+                currentAngleDeg = endAngleDeg;
+            }
+        });
+
+        const typeDonutSvg = `
+            <svg width="${donutSize}" height="${donutSize}" viewBox="0 0 ${donutSize} ${donutSize}">
+                <circle cx="${centerX}" cy="${centerY}" r="${innerRadius}" fill="#1a3a1a"/>
+                ${donutPaths}
+                <text x="${centerX}" y="${centerY + 5}" text-anchor="middle" 
+                      fill="var(--text-light)" font-size="22" font-weight="700">${totalPlants}</text>
+            </svg>
+        `;
+
+        // Generar donut chart SVG para salud (ARREGLADO)
+        const healthDonutSize = 110;
+        const healthRadius = 38;
+        const healthInnerRadius = 22;
+        const healthCenterX = healthDonutSize / 2;
+        const healthCenterY = healthDonutSize / 2;
+        
+        let healthDonutSvg = '';
+        if (totalPlants > 0) {
+            let healthyPath = '';
+            let poorPath = '';
+            
+            // Convertir grados a radianes
+            const startAngleDeg = -90;
+            const startAngleRad = (startAngleDeg * Math.PI) / 180;
+            const fullCircleRad = (270 * Math.PI) / 180;
+            
+            if (healthPercentage === 100 && healthyPlants > 0) {
+                // Si todas están saludables, círculo completo verde
+                healthyPath = this.createDonutSlice(healthCenterX, healthCenterY, healthInnerRadius, healthRadius, startAngleRad, fullCircleRad);
+            } else if (healthPercentage === 0 && poorHealth > 0) {
+                // Si ninguna está saludable, círculo completo rojo
+                poorPath = this.createDonutSlice(healthCenterX, healthCenterY, healthInnerRadius, healthRadius, startAngleRad, fullCircleRad);
+            } else if (totalPlants > 0) {
+                // Caso normal: dos segmentos
+                const healthyAngleDeg = (healthPercentage / 100) * 360;
+                const healthyEndAngleDeg = startAngleDeg + healthyAngleDeg;
+                const healthyEndAngleRad = (healthyEndAngleDeg * Math.PI) / 180;
+                
+                if (healthyPlants > 0) {
+                    healthyPath = this.createDonutSlice(healthCenterX, healthCenterY, healthInnerRadius, healthRadius, startAngleRad, healthyEndAngleRad);
+                }
+                if (poorHealth > 0) {
+                    poorPath = this.createDonutSlice(healthCenterX, healthCenterY, healthInnerRadius, healthRadius, healthyEndAngleRad, fullCircleRad);
+                }
+            }
+            
+            healthDonutSvg = `
+                <svg width="${healthDonutSize}" height="${healthDonutSize}" viewBox="0 0 ${healthDonutSize} ${healthDonutSize}">
+                    <circle cx="${healthCenterX}" cy="${healthCenterY}" r="${healthInnerRadius}" fill="#1a3a1a"/>
+                    ${healthyPath ? `<path d="${healthyPath}" fill="var(--accent-green)"/>` : ''}
+                    ${poorPath ? `<path d="${poorPath}" fill="rgba(220, 53, 69, 0.8)"/>` : ''}
+                    <text x="${healthCenterX}" y="${healthCenterY + 4}" text-anchor="middle" 
+                          fill="var(--text-light)" font-size="18" font-weight="700">${healthPercentage}%</text>
+                </svg>
+            `;
+        }
+
+        // Estadísticas de luz
+        const lightLabels = {
+            'Luz Intensa': 'Alta',
+            'Luz Directa': 'Alta',
+            'Luz Indirecta': 'Media',
+            'Sombra Parcial': 'Media',
+            'Sombra': 'Baja'
+        };
+        const lightGrouped = { Alta: 0, Media: 0, Baja: 0 };
+        Object.entries(lightStats).forEach(([light, count]) => {
+            const group = lightLabels[light] || 'Media';
+            lightGrouped[group] = (lightGrouped[group] || 0) + count;
+        });
+        const totalLight = Object.values(lightGrouped).reduce((a, b) => a + b, 0);
+        const lightAvg = totalLight > 0 ? 
+            (lightGrouped.Alta >= lightGrouped.Media && lightGrouped.Alta >= lightGrouped.Baja ? 'Alta' :
+             lightGrouped.Media >= lightGrouped.Baja ? 'Media' : 'Baja') : 'Sin datos';
+
+        // Estadísticas de riego
+        const totalWatering = Object.values(wateringFreqStats).reduce((a, b) => a + b, 0);
+        const wateringAvg = totalWatering > 0 ?
+            (wateringFreqStats.alta >= wateringFreqStats.moderado && wateringFreqStats.alta >= wateringFreqStats.bajo ? 'Alto' :
+             wateringFreqStats.moderado >= wateringFreqStats.bajo ? 'Moderado' : 'Bajo') : 'Sin datos';
+
+        // Estadísticas de temperatura
+        const tempStats = {};
+        plants.forEach(plant => {
+            const temp = plant.temperature || 'Sin especificar';
+            tempStats[temp] = (tempStats[temp] || 0) + 1;
+        });
+
+        const tempLabels = {
+            'Muy Fría': 'Baja',
+            'Fría': 'Baja',
+            'Templada': 'Media',
+            'Cálida': 'Media',
+            'Caliente': 'Alta',
+            'Muy Caliente': 'Alta'
+        };
+        const tempGrouped = { Alta: 0, Media: 0, Baja: 0 };
+        Object.entries(tempStats).forEach(([temp, count]) => {
+            const group = tempLabels[temp] || 'Media';
+            tempGrouped[group] = (tempGrouped[group] || 0) + count;
+        });
+        const totalTemp = Object.values(tempGrouped).reduce((a, b) => a + b, 0);
+        const tempAvg = totalTemp > 0 ? 
+            (tempGrouped.Alta >= tempGrouped.Media && tempGrouped.Alta >= tempGrouped.Baja ? 'Alta' :
+             tempGrouped.Media >= tempGrouped.Baja ? 'Media' : 'Baja') : 'Sin datos';
+
+        // Estadísticas de humedad agrupadas
+        const humidityLabels = {
+            'BAJA (<40%)': 'Baja',
+            'MEDIA (40-60%)': 'Media',
+            'ALTA (60-80%)': 'Media',
+            'MUY ALTA (>80%)': 'Alta'
+        };
+        const humidityGrouped = { Alta: 0, Media: 0, Baja: 0 };
+        Object.entries(humidityStats).forEach(([humidity, count]) => {
+            const group = humidityLabels[humidity] || 'Media';
+            humidityGrouped[group] = (humidityGrouped[group] || 0) + count;
+        });
+        const totalHumidity = Object.values(humidityGrouped).reduce((a, b) => a + b, 0);
+        const humidityAvg = totalHumidity > 0 ? 
+            (humidityGrouped.Alta >= humidityGrouped.Media && humidityGrouped.Alta >= humidityGrouped.Baja ? 'Alta' :
+             humidityGrouped.Media >= humidityGrouped.Baja ? 'Media' : 'Baja') : 'Sin datos';
+
+        dashboardContent.innerHTML = `
+            <div style="margin-bottom: 15px; display: flex; justify-content: flex-end;">
+                <button id="clearDashboardFiltersBtn" class="btn-secondary btn-small">
+                    <img src="img/icons/cancel.svg" alt="Quitar filtros" class="btn-icon">
+                    Quitar Filtros
+                </button>
+            </div>
+            <div class="dashboard-full-width-grid">
+                
+                <!-- Donut de distribución por tipo -->
+                <div class="dashboard-panel">
+                    <h3 class="dashboard-panel-title">Distribución por tipo</h3>
+                    <div class="dashboard-donut-wrapper">
+                        ${typeDonutSvg}
+                    </div>
+                    <div class="dashboard-compact-legend">
+                        ${sortedCategories.map(([category, count], index) => `
+                            <div class="dashboard-compact-legend-item">
+                                <span class="dashboard-compact-color" style="background: ${colors[index % colors.length]};"></span>
+                                <span>${this.escapeHtml(category)}: ${count} · ${Math.round((count / totalPlants) * 100)}%</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+                
+                <!-- Donut de salud -->
+                <div class="dashboard-panel">
+                    <h3 class="dashboard-panel-title">Estado de Salud</h3>
+                    <div class="dashboard-donut-wrapper">
+                        ${healthDonutSvg}
+                    </div>
+                    <div class="dashboard-compact-legend">
+                        <div class="dashboard-compact-legend-item">
+                            <span class="dashboard-compact-color" style="background: var(--accent-green);"></span>
+                            <span>Saludable: ${healthyPlants}</span>
+                        </div>
+                        <div class="dashboard-compact-legend-item">
+                            <span class="dashboard-compact-color" style="background: rgba(220, 53, 69, 0.8);"></span>
+                            <span>Mala salud: ${poorHealth}</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Estadísticas de Luz -->
+                <div class="dashboard-panel">
+                    <h3 class="dashboard-panel-title">Luz</h3>
+                    <div class="dashboard-progress-section">
+                        <div class="dashboard-progress-item">
+                            <span class="dashboard-progress-label">Alta</span>
+                            <div class="dashboard-progress-bar">
+                                <div class="dashboard-progress-fill" style="width: ${totalLight > 0 ? (lightGrouped.Alta / totalLight) * 100 : 0}%; background: var(--accent-green);"></div>
+                            </div>
+                            <span class="dashboard-progress-value">${lightGrouped.Alta} · ${totalLight > 0 ? Math.round((lightGrouped.Alta / totalLight) * 100) : 0}%</span>
+                        </div>
+                        <div class="dashboard-progress-item">
+                            <span class="dashboard-progress-label">Media</span>
+                            <div class="dashboard-progress-bar">
+                                <div class="dashboard-progress-fill" style="width: ${totalLight > 0 ? (lightGrouped.Media / totalLight) * 100 : 0}%; background: var(--accent-green);"></div>
+                            </div>
+                            <span class="dashboard-progress-value">${lightGrouped.Media} · ${totalLight > 0 ? Math.round((lightGrouped.Media / totalLight) * 100) : 0}%</span>
+                        </div>
+                        <div class="dashboard-progress-item">
+                            <span class="dashboard-progress-label">Baja</span>
+                            <div class="dashboard-progress-bar">
+                                <div class="dashboard-progress-fill" style="width: ${totalLight > 0 ? (lightGrouped.Baja / totalLight) * 100 : 0}%; background: var(--accent-green);"></div>
+                            </div>
+                            <span class="dashboard-progress-value">${lightGrouped.Baja} · ${totalLight > 0 ? Math.round((lightGrouped.Baja / totalLight) * 100) : 0}%</span>
+                        </div>
+                        <div class="dashboard-progress-item dashboard-progress-avg">
+                            <span class="dashboard-progress-label">Promedio: ${lightAvg}</span>
+                            <div class="dashboard-progress-bar">
+                                <div class="dashboard-progress-fill" style="width: ${totalLight > 0 ? 
+                                    (lightAvg === 'Alta' ? 100 : lightAvg === 'Media' ? 50 : 25) : 0}%; background: var(--accent-green);"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Estadísticas de Riego -->
+                <div class="dashboard-panel">
+                    <h3 class="dashboard-panel-title">Riego</h3>
+                    <div class="dashboard-progress-section">
+                        <div class="dashboard-progress-item">
+                            <span class="dashboard-progress-label">Alto</span>
+                            <div class="dashboard-progress-bar">
+                                <div class="dashboard-progress-fill" style="width: ${totalWatering > 0 ? (wateringFreqStats.alta / totalWatering) * 100 : 0}%; background: var(--water-blue);"></div>
+                            </div>
+                            <span class="dashboard-progress-value">${wateringFreqStats.alta} · ${totalWatering > 0 ? Math.round((wateringFreqStats.alta / totalWatering) * 100) : 0}%</span>
+                        </div>
+                        <div class="dashboard-progress-item">
+                            <span class="dashboard-progress-label">Moderado</span>
+                            <div class="dashboard-progress-bar">
+                                <div class="dashboard-progress-fill" style="width: ${totalWatering > 0 ? (wateringFreqStats.moderado / totalWatering) * 100 : 0}%; background: var(--water-blue);"></div>
+                            </div>
+                            <span class="dashboard-progress-value">${wateringFreqStats.moderado} · ${totalWatering > 0 ? Math.round((wateringFreqStats.moderado / totalWatering) * 100) : 0}%</span>
+                        </div>
+                        <div class="dashboard-progress-item">
+                            <span class="dashboard-progress-label">Bajo</span>
+                            <div class="dashboard-progress-bar">
+                                <div class="dashboard-progress-fill" style="width: ${totalWatering > 0 ? (wateringFreqStats.bajo / totalWatering) * 100 : 0}%; background: var(--water-blue);"></div>
+                            </div>
+                            <span class="dashboard-progress-value">${wateringFreqStats.bajo} · ${totalWatering > 0 ? Math.round((wateringFreqStats.bajo / totalWatering) * 100) : 0}%</span>
+                        </div>
+                        <div class="dashboard-progress-item dashboard-progress-avg">
+                            <span class="dashboard-progress-label">Promedio: ${wateringAvg}</span>
+                            <div class="dashboard-progress-bar">
+                                <div class="dashboard-progress-fill" style="width: ${totalWatering > 0 ? 
+                                    (wateringAvg === 'Alto' ? 100 : wateringAvg === 'Moderado' ? 50 : 25) : 0}%; background: var(--water-blue);"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Estadísticas de Temperatura y Humedad -->
+                <div class="dashboard-panel">
+                    <h3 class="dashboard-panel-title">Temperatura y Humedad</h3>
+                    <div class="dashboard-progress-section">
+                        <div class="dashboard-progress-item">
+                            <span class="dashboard-progress-label">Alta</span>
+                            <div class="dashboard-progress-bar">
+                                <div class="dashboard-progress-fill" style="width: ${totalTemp > 0 ? (tempGrouped.Alta / totalTemp) * 100 : 0}%; background: #FF6B35;"></div>
+                            </div>
+                            <span class="dashboard-progress-value">T: ${tempGrouped.Alta} | H: ${humidityGrouped.Alta}</span>
+                        </div>
+                        <div class="dashboard-progress-item">
+                            <span class="dashboard-progress-label">Media</span>
+                            <div class="dashboard-progress-bar">
+                                <div class="dashboard-progress-fill" style="width: ${totalTemp > 0 ? (tempGrouped.Media / totalTemp) * 100 : 0}%; background: #FF6B35;"></div>
+                            </div>
+                            <span class="dashboard-progress-value">T: ${tempGrouped.Media} | H: ${humidityGrouped.Media}</span>
+                        </div>
+                        <div class="dashboard-progress-item">
+                            <span class="dashboard-progress-label">Baja</span>
+                            <div class="dashboard-progress-bar">
+                                <div class="dashboard-progress-fill" style="width: ${totalTemp > 0 ? (tempGrouped.Baja / totalTemp) * 100 : 0}%; background: #FF6B35;"></div>
+                            </div>
+                            <span class="dashboard-progress-value">T: ${tempGrouped.Baja} | H: ${humidityGrouped.Baja}</span>
+                        </div>
+                        <div class="dashboard-progress-item dashboard-progress-avg">
+                            <span class="dashboard-progress-label">Promedio: Temp ${tempAvg} | Hum ${humidityAvg}</span>
+                            <div class="dashboard-progress-bar">
+                                <div class="dashboard-progress-fill" style="width: ${totalTemp > 0 ? 
+                                    (tempAvg === 'Alta' ? 100 : tempAvg === 'Media' ? 50 : 25) : 0}%; background: #FF6B35;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Añadir event listeners para filtrado interactivo
+        setTimeout(() => {
+            // Filtrado por tipo desde la leyenda del donut
+            document.querySelectorAll('.dashboard-compact-legend-item').forEach((item, index) => {
+                const panel = item.closest('.dashboard-panel');
+                if (panel && panel.querySelector('.dashboard-panel-title').textContent.includes('tipo')) {
+                    item.addEventListener('click', () => {
+                        const text = item.textContent.trim();
+                        const category = text.split(':')[0].trim();
+                        this.filterByCategory(category);
+                    });
+                }
+            });
+            
+            // Filtrado por luz
+            document.querySelectorAll('.dashboard-progress-item').forEach(item => {
+                const panel = item.closest('.dashboard-panel');
+                if (panel && panel.querySelector('.dashboard-panel-title').textContent.includes('Luz')) {
+                    const label = item.querySelector('.dashboard-progress-label').textContent.trim();
+                    if (!label.includes('Promedio')) {
+                        item.addEventListener('click', () => {
+                            this.filterByLight(label);
+                        });
+                    }
+                }
+            });
+            
+            // Filtrado por riego
+            document.querySelectorAll('.dashboard-progress-item').forEach(item => {
+                const panel = item.closest('.dashboard-panel');
+                if (panel && panel.querySelector('.dashboard-panel-title').textContent.includes('Riego')) {
+                    const label = item.querySelector('.dashboard-progress-label').textContent.trim();
+                    if (!label.includes('Promedio')) {
+                        item.addEventListener('click', () => {
+                            this.filterByWatering(label);
+                        });
+                    }
+                }
+            });
+        }, 100);
+    }
+
+    filterByCategory(category) {
+        const typeCategories = {
+            'Suculentas': ['Suculenta', 'Cactus'],
+            'Trep./Colg.': ['Trepadora/enredadera', 'Colgante'],
+            'Palmeras': ['Palmera'],
+            'Arb./Árboles': ['Arbusto', 'Árbol', 'Bambú'],
+            'Herb./Ornam.': ['Planta verde (foliage/ornamental)', 'Planta de flor', 'Planta aromática', 'Helecho', 'Bulbosa'],
+            'Especiales': ['Bonsái', 'Orquídea', 'Carnívora', 'Epífita', 'Tapizante', 'Planta acuática', 'Planta aérea']
+        };
+        
+        const types = typeCategories[category] || [category];
+        const filtered = this.plants.filter(plant => {
+            const type = plant.type || 'Sin tipo';
+            return types.includes(type) || (category === 'Sin tipo' && !plant.type);
+        });
+        
+        this.renderPlants(filtered);
+        this.showNotification(`Filtrado por: ${category}`, 'success');
+    }
+
+    filterByLight(lightLevel) {
+        const lightMapping = {
+            'Alta': ['Luz Intensa', 'Luz Directa'],
+            'Media': ['Luz Indirecta', 'Sombra Parcial'],
+            'Baja': ['Sombra']
+        };
+        
+        const lightTypes = lightMapping[lightLevel] || [lightLevel];
+        const filtered = this.plants.filter(plant => {
+            const light = plant.light || '';
+            return lightTypes.some(type => light.includes(type));
+        });
+        
+        this.renderPlants(filtered);
+        this.showNotification(`Filtrado por luz: ${lightLevel}`, 'success');
+    }
+
+    filterByWatering(wateringLevel) {
+        const filtered = this.plants.filter(plant => {
+            const spring = parseInt(plant.wateringSpring) || 0;
+            const summer = parseInt(plant.wateringSummer) || 0;
+            const autumn = parseInt(plant.wateringAutumn) || 0;
+            const winter = parseInt(plant.wateringWinter) || 0;
+            const avgDays = (spring + summer + autumn + winter) / 4;
+            
+            if (avgDays === 0) return false;
+            
+            if (wateringLevel === 'Alto') {
+                return avgDays <= 5;
+            } else if (wateringLevel === 'Moderado') {
+                return avgDays > 5 && avgDays <= 10;
+            } else if (wateringLevel === 'Bajo') {
+                return avgDays > 10;
+            }
+            return false;
+        });
+        
+        this.renderPlants(filtered);
+        this.showNotification(`Filtrado por riego: ${wateringLevel}`, 'success');
+    }
+
     renderPlants(plantsToRender = null) {
-        const container = document.getElementById('plantsContainer');
         const plants = plantsToRender || this.plants;
+        this.renderDashboard(plants); // Actualizar dashboard con las plantas a mostrar
+        const container = document.getElementById('plantsContainer');
 
         // Si no hay plantas en la base de datos
         if (this.plants.length === 0) {
@@ -2261,24 +2776,6 @@ class PlantManager {
     }
 
     // Extraer el path del archivo desde una URL de Firebase Storage
-    extractStoragePathFromUrl(url) {
-        try {
-            // Si es una URL de Firebase Storage, extraer el path
-            if (url.includes('firebasestorage.googleapis.com')) {
-                const urlObj = new URL(url);
-                const pathMatch = urlObj.pathname.match(/\/o\/(.+)\?/);
-                if (pathMatch) {
-                    // Decodificar el path (Firebase Storage codifica los caracteres especiales)
-                    return decodeURIComponent(pathMatch[1]);
-                }
-            }
-            // Si no es una URL de Firebase Storage, retornar null
-            return null;
-        } catch (error) {
-            console.error('Error extrayendo path de URL:', error);
-            return null;
-        }
-    }
 
     async deletePhoto(plantId, photoUrl, photoIndex) {
         if (!confirm('¿Estás seguro de que quieres eliminar esta foto?')) {
@@ -2352,10 +2849,20 @@ class PlantManager {
     showCommentForm(plantId) {
         const container = document.getElementById('newCommentContainer');
         if (container) {
-            container.classList.remove('hidden');
-            const textarea = document.getElementById('newComment');
-            if (textarea) {
-                textarea.focus();
+            // Toggle: si está visible, ocultarlo; si está oculto, mostrarlo
+            if (container.classList.contains('hidden')) {
+                container.classList.remove('hidden');
+                const textarea = document.getElementById('newComment');
+                if (textarea) {
+                    textarea.focus();
+                }
+            } else {
+                container.classList.add('hidden');
+                // Limpiar el textarea al ocultar
+                const textarea = document.getElementById('newComment');
+                if (textarea) {
+                    textarea.value = '';
+                }
             }
         }
     }
@@ -2620,6 +3127,24 @@ class PlantManager {
         document.getElementById('searchInput').value = '';
         this.renderPlants();
         this.showNotification('Filtros limpiados', 'success');
+    }
+
+    clearAllFilters() {
+        // Limpiar filtros avanzados
+        this.clearAdvancedFilters();
+        
+        // Limpiar filtros de píldoras
+        document.querySelectorAll('.filter-btn').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        const allBtn = document.querySelector('.filter-btn[data-filter="all"]');
+        if (allBtn) {
+            allBtn.classList.add('active');
+        }
+        
+        // Renderizar todas las plantas
+        this.renderPlants();
+        this.showNotification('Filtros quitados', 'success');
     }
 
     // Utilidades

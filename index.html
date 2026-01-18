@@ -62,6 +62,13 @@
             </div>
         </header>
 
+        <!-- Dashboard de Resumen -->
+        <section id="dashboardSection" class="glass-panel dashboard-section">
+            <div id="dashboardContent">
+                <!-- Se renderizará dinámicamente -->
+            </div>
+        </section>
+
         <!-- Filtros y búsqueda -->
         <section class="glass-panel filters-section">
             <div class="search-box" style="display: flex; gap: 10px; align-items: center;">
@@ -74,11 +81,15 @@
                     <input type="text" id="searchInput" placeholder="Buscar plantas..." style="flex: 1; padding-left: 38px;">
                 </div>
             </div>
-            <div class="filter-buttons">
+            <div class="filter-buttons" style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
                 <button class="filter-btn active" data-filter="all">Todas</button>
                 <button class="filter-btn" data-filter="needs-water">Necesitan Riego</button>
                 <button class="filter-btn" data-filter="recent">Recientes</button>
                 <button class="filter-btn" data-filter="poor-health">Mala Salud</button>
+                <button id="clearAllFiltersBtn" class="btn-secondary btn-small" style="margin-left: auto;">
+                    <img src="img/icons/cancel.svg" alt="Quitar filtros" class="btn-icon">
+                    Quitar Filtros
+                </button>
             </div>
             <div class="advanced-filters">
                 <button id="toggleFiltersBtn" class="btn-secondary btn-small">
