@@ -236,8 +236,14 @@
                                 <div class="substrate-chart-container">
                                     <div class="substrate-chart-label">Mezcla Actual</div>
                                     <svg id="substrateChart" class="substrate-chart" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-                                        <circle cx="100" cy="100" r="80" fill="#1a3a1a" stroke="rgba(255,255,255,0.3)" stroke-width="2"/>
-                                        <text x="100" y="100" text-anchor="middle" dominant-baseline="middle" fill="rgba(255,255,255,0.7)" font-size="14" font-weight="600">0%</text>
+                                        <defs>
+                                            <filter id="shadow">
+                                                <feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity="0.3"/>
+                                            </filter>
+                                        </defs>
+                                        <text x="100" y="105" text-anchor="middle" dominant-baseline="middle" 
+                                              fill="var(--text-light)" font-size="24" font-weight="700" 
+                                              style="filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));">0%</text>
                                     </svg>
                                 </div>
                             </div>

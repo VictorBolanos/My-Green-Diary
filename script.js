@@ -2,24 +2,25 @@
 
 // Tipos de sustrato con colores para el gráfico
 const SUBSTRATE_TYPES = [
-    { id: 'universal', name: 'Sustrato universal', color: '#8B4513' },
-    { id: 'turba_rubia', name: 'Turba rubia', color: '#CD853F' },
-    { id: 'fibra_coco', name: 'Fibra de coco', color: '#A0522D' },
-    { id: 'mantillo', name: 'Mantillo', color: '#654321' },
-    { id: 'perlita', name: 'Perlita', color: '#F5F5F5' },
-    { id: 'vermiculita', name: 'Vermiculita', color: '#FFF8DC' },
-    { id: 'arcilla_expandida', name: 'Arcilla expandida', color: '#9E7B6D' },
-    { id: 'arena_rio', name: 'Arena de río', color: '#DCDCDC' },
-    { id: 'grava', name: 'Grava', color: '#708090' },
-    { id: 'corteza_pino', name: 'Corteza de pino', color: '#8B6914' },
-    { id: 'humus', name: 'Humus de lombriz', color: '#556B2F' },
-    { id: 'musgo', name: 'Musgo sphagnum', color: '#9ACD32' }
+    { id: 'universal', name: 'Sustrato universal', color: '#8B4513' }, // Marrón oscuro
+    { id: 'turba_rubia', name: 'Turba rubia', color: '#FF6B35' }, // Naranja vibrante
+    { id: 'fibra_coco', name: 'Fibra de coco', color: '#D4A574' }, // Beige dorado
+    { id: 'mantillo', name: 'Mantillo', color: '#3E2723' }, // Marrón muy oscuro
+    { id: 'perlita', name: 'Perlita', color: '#FFFFFF' }, // Blanco puro
+    { id: 'vermiculita', name: 'Vermiculita', color: '#FFC107' }, // Amarillo brillante
+    { id: 'arcilla_expandida', name: 'Arcilla expandida', color: '#E91E63' }, // Rosa/Magenta
+    { id: 'arena_rio', name: 'Arena de río', color: '#00BCD4' }, // Cyan claro
+    { id: 'grava', name: 'Grava', color: '#607D8B' }, // Gris azulado medio
+    { id: 'corteza_pino', name: 'Corteza de pino', color: '#795548' }, // Marrón medio
+    { id: 'humus', name: 'Humus de lombriz', color: '#2E7D32' }, // Verde oscuro
+    { id: 'musgo', name: 'Musgo sphagnum', color: '#4CAF50' } // Verde claro
 ];
 
 class PlantManager {
     constructor() {
         this.plants = [];
         this.currentEditingId = null;
+        this.isSubmittingForm = false; // Flag para indicar si se está guardando el formulario
         this.db = null;
         this.storage = null;
         this.useFirebase = false;
@@ -109,10 +110,36 @@ class PlantManager {
 
         // Event listeners para inputs
         substrateList.querySelectorAll('.substrate-percentage-input').forEach(input => {
-            input.addEventListener('input', () => this.updateSubstrateChart());
+            input.addEventListener('input', () => {
+                this.updateSubstrateChart();
+                this.updateSubstrateInputStyle(input);
+            });
+            // Actualizar estilo inicial
+            this.updateSubstrateInputStyle(input);
         });
 
         this.updateSubstrateChart();
+    }
+
+    // Actualizar estilo del input según su valor
+    updateSubstrateInputStyle(input) {
+        const value = parseFloat(input.value) || 0;
+        if (value > 0) {
+            input.style.borderColor = 'var(--accent-green)';
+            input.style.borderWidth = '3px';
+            input.style.boxShadow = '0 0 0 2px rgba(74, 154, 74, 0.4), 0 2px 8px rgba(74, 154, 74, 0.3)';
+            input.style.background = 'rgba(74, 154, 74, 0.15)';
+            input.style.fontWeight = '700';
+            input.style.transform = 'scale(1.05)';
+            input.style.transition = 'all 0.3s ease';
+        } else {
+            input.style.borderColor = 'rgba(255, 255, 255, 0.8)';
+            input.style.borderWidth = '1px';
+            input.style.boxShadow = 'none';
+            input.style.background = 'rgba(10, 31, 10, 0.8)';
+            input.style.fontWeight = '600';
+            input.style.transform = 'scale(1)';
+        }
     }
 
     // Actualizar gráfico circular de sustrato
@@ -137,6 +164,7 @@ class PlantManager {
                 if (value > 0 && total > 0) {
                     const newValue = Math.max(0, value - (excess * value / total));
                     input.value = Math.round(newValue * 10) / 10;
+                    this.updateSubstrateInputStyle(input);
                 }
             });
             // Recalcular
@@ -146,6 +174,7 @@ class PlantManager {
                 const substrateId = input.dataset.substrateId;
                 percentages[substrateId] = value;
                 total += value;
+                this.updateSubstrateInputStyle(input);
             });
         }
 
@@ -156,16 +185,27 @@ class PlantManager {
             this.generateSubstratePieChart(chartSvg, percentages, remaining);
         }
 
-        // Mostrar porcentaje restante
+        // Ocultar el texto del centro del donut (siempre será 100% cuando hay valores, no tiene sentido mostrarlo)
         const chartText = chartSvg?.querySelector('text');
         if (chartText) {
-            chartText.textContent = total > 0 ? `${Math.round(total)}%` : '0%';
+            const totalRounded = Math.round(total);
+            if (totalRounded > 0) {
+                // Si hay valores, ocultar el texto (siempre será 100%)
+                chartText.style.display = 'none';
+            } else {
+                // Si no hay valores, mostrar "0%"
+                chartText.style.display = 'block';
+                chartText.textContent = '0%';
+                chartText.setAttribute('fill', 'var(--text-muted)');
+                chartText.setAttribute('font-size', '24');
+            }
         }
     }
 
-    // Generar gráfico circular (pie chart) SVG
+    // Generar gráfico donut (rosco) SVG
     generateSubstratePieChart(svgElement, percentages, remaining = 0) {
-        const radius = 80;
+        const outerRadius = 85;
+        const innerRadius = 50; // Radio interior para crear el hueco del donut
         const centerX = 100;
         const centerY = 100;
         
@@ -175,46 +215,148 @@ class PlantManager {
 
         let currentAngle = -Math.PI / 2; // Empezar desde arriba
 
-        // Dibujar segmentos para cada sustrato con porcentaje > 0
+        // Calcular total para mostrar porcentaje
+        let total = 0;
+        Object.values(percentages).forEach(p => total += p);
+
+        // Dibujar segmentos donut para cada sustrato con porcentaje > 0
         Object.entries(percentages).forEach(([substrateId, percentage]) => {
             if (percentage > 0) {
                 const substrate = SUBSTRATE_TYPES.find(s => s.id === substrateId);
                 if (substrate) {
                     const angle = (percentage / 100) * 2 * Math.PI;
-                    const path = this.createPieSlice(centerX, centerY, radius, currentAngle, currentAngle + angle);
+                    const path = this.createDonutSlice(centerX, centerY, innerRadius, outerRadius, currentAngle, currentAngle + angle);
                     const pathElement = document.createElementNS('http://www.w3.org/2000/svg', 'path');
                     pathElement.setAttribute('d', path);
                     pathElement.setAttribute('fill', substrate.color);
-                    pathElement.setAttribute('stroke', 'rgba(10, 31, 10, 0.8)');
-                    pathElement.setAttribute('stroke-width', '2');
+                    pathElement.setAttribute('stroke', 'rgba(10, 31, 10, 0.9)');
+                    pathElement.setAttribute('stroke-width', '3');
+                    pathElement.setAttribute('stroke-linejoin', 'round');
+                    // Almacenar información para tooltip
+                    pathElement.setAttribute('data-substrate-name', substrate.name);
+                    pathElement.setAttribute('data-substrate-percentage', percentage);
+                    pathElement.style.cursor = 'pointer';
+                    
+                    // Añadir event listeners para tooltip personalizado
+                    pathElement.addEventListener('mouseenter', (e) => {
+                        this.showSubstrateTooltip(e, substrate.name, percentage);
+                    });
+                    pathElement.addEventListener('mouseleave', () => {
+                        this.hideSubstrateTooltip();
+                    });
+                    pathElement.addEventListener('mousemove', (e) => {
+                        this.updateSubstrateTooltipPosition(e);
+                    });
+                    
                     svgElement.insertBefore(pathElement, svgElement.querySelector('text'));
                     currentAngle += angle;
                 }
             }
         });
 
-        // Dibujar espacio restante (transparente)
+        // Dibujar espacio restante (transparente) como donut también
         if (remaining > 0 && currentAngle < Math.PI * 1.5) {
             const angle = (remaining / 100) * 2 * Math.PI;
-            const path = this.createPieSlice(centerX, centerY, radius, currentAngle, currentAngle + angle);
+            const path = this.createDonutSlice(centerX, centerY, innerRadius, outerRadius, currentAngle, currentAngle + angle);
             const pathElement = document.createElementNS('http://www.w3.org/2000/svg', 'path');
             pathElement.setAttribute('d', path);
-            pathElement.setAttribute('fill', 'rgba(10, 31, 10, 0.3)');
-            pathElement.setAttribute('stroke', 'rgba(255, 255, 255, 0.2)');
+            pathElement.setAttribute('fill', 'rgba(10, 31, 10, 0.25)');
+            pathElement.setAttribute('stroke', 'rgba(255, 255, 255, 0.15)');
             pathElement.setAttribute('stroke-width', '2');
+            pathElement.setAttribute('stroke-linejoin', 'round');
             svgElement.insertBefore(pathElement, svgElement.querySelector('text'));
         }
     }
 
-    // Crear slice de pie chart
-    createPieSlice(centerX, centerY, radius, startAngle, endAngle) {
-        const x1 = centerX + radius * Math.cos(startAngle);
-        const y1 = centerY + radius * Math.sin(startAngle);
-        const x2 = centerX + radius * Math.cos(endAngle);
-        const y2 = centerY + radius * Math.sin(endAngle);
-        const largeArcFlag = endAngle - startAngle > Math.PI ? 1 : 0;
+    // Mostrar tooltip personalizado para sustratos
+    showSubstrateTooltip(event, substrateName, percentage) {
+        // Eliminar tooltip anterior si existe
+        const existingTooltip = document.getElementById('substrateTooltip');
+        if (existingTooltip) {
+            existingTooltip.remove();
+        }
+        
+        // Crear tooltip
+        const tooltip = document.createElement('div');
+        tooltip.id = 'substrateTooltip';
+        tooltip.style.cssText = `
+            position: fixed;
+            background: rgba(10, 31, 10, 0.95);
+            backdrop-filter: blur(10px);
+            border: 2px solid var(--accent-green);
+            border-radius: 8px;
+            padding: 10px 15px;
+            color: var(--text-light);
+            font-size: 0.9rem;
+            font-weight: 600;
+            z-index: 10000;
+            pointer-events: none;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+            opacity: 0;
+            transition: opacity 0.2s ease;
+            line-height: 1.4;
+        `;
+        tooltip.innerHTML = `<div style="font-weight: 700; margin-bottom: 4px;">${substrateName}</div><div style="color: var(--accent-green); font-size: 1.1rem;">${Math.round(percentage)}%</div>`;
+        document.body.appendChild(tooltip);
+        
+        // Posicionar tooltip
+        this.updateSubstrateTooltipPosition(event);
+        
+        // Mostrar con animación
+        setTimeout(() => {
+            tooltip.style.opacity = '1';
+        }, 10);
+    }
 
-        return `M ${centerX} ${centerY} L ${x1} ${y1} A ${radius} ${radius} 0 ${largeArcFlag} 1 ${x2} ${y2} Z`;
+    // Actualizar posición del tooltip
+    updateSubstrateTooltipPosition(event) {
+        const tooltip = document.getElementById('substrateTooltip');
+        if (tooltip && event) {
+            const x = event.clientX + 15;
+            const y = event.clientY - 15;
+            tooltip.style.left = `${x}px`;
+            tooltip.style.top = `${y}px`;
+        }
+    }
+
+    // Ocultar tooltip
+    hideSubstrateTooltip() {
+        const tooltip = document.getElementById('substrateTooltip');
+        if (tooltip) {
+            tooltip.style.opacity = '0';
+            setTimeout(() => {
+                if (tooltip && tooltip.parentNode) {
+                    tooltip.remove();
+                }
+            }, 200);
+        }
+    }
+
+    // Crear slice de donut (arco con radio interior y exterior)
+    createDonutSlice(centerX, centerY, innerRadius, outerRadius, startAngle, endAngle) {
+        // Puntos exteriores
+        const x1Outer = centerX + outerRadius * Math.cos(startAngle);
+        const y1Outer = centerY + outerRadius * Math.sin(startAngle);
+        const x2Outer = centerX + outerRadius * Math.cos(endAngle);
+        const y2Outer = centerY + outerRadius * Math.sin(endAngle);
+        
+        // Puntos interiores
+        const x1Inner = centerX + innerRadius * Math.cos(startAngle);
+        const y1Inner = centerY + innerRadius * Math.sin(startAngle);
+        const x2Inner = centerX + innerRadius * Math.cos(endAngle);
+        const y2Inner = centerY + innerRadius * Math.sin(endAngle);
+        
+        const largeArcFlag = endAngle - startAngle > Math.PI ? 1 : 0;
+        
+        // Crear el path del donut slice
+        // Comenzar en el punto exterior del inicio del ángulo
+        const path = `M ${x1Outer} ${y1Outer} 
+                     A ${outerRadius} ${outerRadius} 0 ${largeArcFlag} 1 ${x2Outer} ${y2Outer} 
+                     L ${x2Inner} ${y2Inner} 
+                     A ${innerRadius} ${innerRadius} 0 ${largeArcFlag} 0 ${x1Inner} ${y1Inner} 
+                     Z`;
+        
+        return path;
     }
 
     // Eliminar foto inválida de una planta
@@ -288,8 +430,15 @@ class PlantManager {
         const html = `
             <div class="substrate-display-container">
                 <svg id="${chartId}" class="substrate-display-chart" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-                    <circle cx="100" cy="100" r="80" fill="#1a3a1a" stroke="rgba(255,255,255,0.3)" stroke-width="2"/>
-                    <text x="100" y="100" text-anchor="middle" dominant-baseline="middle" fill="rgba(255,255,255,0.7)" font-size="14" font-weight="600">${Math.round(total)}%</text>
+                    <defs>
+                        <filter id="shadow-display">
+                            <feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity="0.3"/>
+                        </filter>
+                    </defs>
+                    <text x="100" y="105" text-anchor="middle" dominant-baseline="middle" 
+                          fill="${total > 0 ? 'var(--accent-green)' : 'var(--text-muted)'}" 
+                          font-size="${total > 0 ? '26' : '24'}" font-weight="700" 
+                          style="filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3)); ${total > 0 ? 'display: none;' : ''}">0%</text>
                 </svg>
                 <button class="substrate-legend-btn" onclick="plantManager.showSubstrateLegend()" title="Ver leyenda">
                     <img src="img/icons/info.svg" alt="Info" class="substrate-legend-icon">
@@ -925,8 +1074,8 @@ class PlantManager {
     }
 
     closePlantFormModal() {
-        // Verificar si hay cambios sin guardar
-        if (this.hasFormChanges()) {
+        // Verificar si hay cambios sin guardar (solo si NO se está guardando)
+        if (!this.isSubmittingForm && this.hasFormChanges()) {
             if (!confirm('¿Estás seguro de que quieres salir? Tienes cambios sin guardar que se perderán.')) {
                 return; // No cerrar si el usuario cancela
             }
@@ -1183,6 +1332,9 @@ class PlantManager {
     async handleFormSubmit(e) {
         e.preventDefault();
         
+        // Marcar que se está guardando para evitar el aviso de cambios sin guardar
+        this.isSubmittingForm = true;
+        
         // Deshabilitar página y mostrar toast de guardando
         this.disablePage();
         this.showSavingToast();
@@ -1274,6 +1426,9 @@ class PlantManager {
             this.hideSavingToast();
             this.enablePage();
             this.showNotification('Error al guardar la planta', 'error');
+        } finally {
+            // Restaurar el flag al finalizar (exitoso o con error)
+            this.isSubmittingForm = false;
         }
     }
 
