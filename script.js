@@ -26,6 +26,8 @@ class PlantManager {
         this.modalPhotoIndex = {}; // Índice del carrusel de fotos en modal
         this.lightboxPhotoIndex = 0; // Índice de la foto en el lightbox
         this.lightboxPlantId = null; // ID de la planta en el lightbox
+        this.plantBeforeEdit = null; // Planta que estaba abierta antes de editar
+        this.initialFormData = null; // Datos iniciales del formulario para detectar cambios
         // Inicializar event listeners primero para que funcionen inmediatamente
         this.setupEventListeners();
         // Luego cargar datos (async)
@@ -282,13 +284,21 @@ class PlantManager {
         return html;
     }
 
-    // Mostrar modal de leyenda de sustratos
+    // Mostrar/ocultar modal de leyenda de sustratos (toggle)
     showSubstrateLegend() {
         const modal = document.getElementById('substrateLegendModal');
         const legendList = document.getElementById('substrateLegendList');
+        const plantModal = document.getElementById('plantModal');
         
         if (!modal || !legendList) return;
 
+        // Si el modal está visible, ocultarlo (toggle)
+        if (!modal.classList.contains('hidden')) {
+            modal.classList.add('hidden');
+            return;
+        }
+
+        // Si está oculto, mostrarlo y generar el contenido
         let html = '<div class="substrate-legend-grid">';
         SUBSTRATE_TYPES.forEach(substrate => {
             html += `
@@ -303,12 +313,68 @@ class PlantManager {
         legendList.innerHTML = html;
         modal.classList.remove('hidden');
 
-        // Cerrar al hacer clic fuera
-        modal.addEventListener('click', (e) => {
-            if (e.target.id === 'substrateLegendModal') {
-                modal.classList.add('hidden');
+        // Posicionar el modal de la leyenda al lado del modal principal
+        if (plantModal && !plantModal.classList.contains('hidden')) {
+            const plantModalContent = plantModal.querySelector('.modal-content');
+            if (plantModalContent) {
+                const plantModalRect = plantModalContent.getBoundingClientRect();
+                const legendModalContent = modal.querySelector('.modal-content');
+                
+                if (legendModalContent) {
+                    // Posicionar a la derecha del modal principal
+                    const leftPosition = plantModalRect.right + 20; // 20px de espacio
+                    const topPosition = plantModalRect.top;
+                    
+                    legendModalContent.style.left = `${leftPosition}px`;
+                    legendModalContent.style.top = `${topPosition}px`;
+                    
+                    // Si se sale de la pantalla por la derecha, posicionar a la izquierda
+                    if (leftPosition + 250 > window.innerWidth) {
+                        legendModalContent.style.left = `${plantModalRect.left - 270}px`; // 250px ancho + 20px espacio
+                    }
+                    
+                    // Si se sale por arriba o abajo, ajustar verticalmente
+                    if (topPosition + legendModalContent.offsetHeight > window.innerHeight) {
+                        legendModalContent.style.top = `${window.innerHeight - legendModalContent.offsetHeight - 20}px`;
+                    }
+                    if (topPosition < 0) {
+                        legendModalContent.style.top = '20px';
+                    }
+                }
             }
-        }, { once: true });
+        }
+
+        // Reposicionar cuando se redimensione la ventana
+        const repositionLegend = () => {
+            if (plantModal && !plantModal.classList.contains('hidden') && !modal.classList.contains('hidden')) {
+                const plantModalContent = plantModal.querySelector('.modal-content');
+                const legendModalContent = modal.querySelector('.modal-content');
+                
+                if (plantModalContent && legendModalContent) {
+                    const plantModalRect = plantModalContent.getBoundingClientRect();
+                    const leftPosition = plantModalRect.right + 20;
+                    const topPosition = plantModalRect.top;
+                    
+                    legendModalContent.style.left = `${leftPosition}px`;
+                    legendModalContent.style.top = `${topPosition}px`;
+                    
+                    // Si se sale de la pantalla por la derecha, posicionar a la izquierda
+                    if (leftPosition + 250 > window.innerWidth) {
+                        legendModalContent.style.left = `${plantModalRect.left - 270}px`;
+                    }
+                    
+                    // Si se sale por arriba o abajo, ajustar verticalmente
+                    if (topPosition + legendModalContent.offsetHeight > window.innerHeight) {
+                        legendModalContent.style.top = `${window.innerHeight - legendModalContent.offsetHeight - 20}px`;
+                    }
+                    if (topPosition < 0) {
+                        legendModalContent.style.top = '20px';
+                    }
+                }
+            }
+        };
+
+        window.addEventListener('resize', repositionLegend);
     }
 
     async initFirebase() {
@@ -410,11 +476,18 @@ class PlantManager {
                 cancelFormBtn.addEventListener('click', () => this.closePlantFormModal());
             }
 
-            // Cerrar modal al hacer clic fuera
+            // Cerrar formulario al hacer clic fuera (pero NO cerrar el modal de detalles)
             const plantFormModal = document.getElementById('plantFormModal');
             if (plantFormModal) {
                 plantFormModal.addEventListener('click', (e) => {
+                    // Solo cerrar si se hace clic en el fondo del formulario (no en el contenido)
                     if (e.target.id === 'plantFormModal') {
+                        // Verificar cambios antes de cerrar
+                        if (this.hasFormChanges()) {
+                            if (!confirm('¿Estás seguro de que quieres salir? Tienes cambios sin guardar que se perderán.')) {
+                                return; // No cerrar si el usuario cancela
+                            }
+                        }
                         this.closePlantFormModal();
                     }
                 });
@@ -436,18 +509,57 @@ class PlantManager {
             });
 
             // Modal
-            const closeModal = document.querySelector('.close-modal');
-            if (closeModal) {
-                closeModal.addEventListener('click', () => this.closeModal());
-            }
-
             const plantModal = document.getElementById('plantModal');
             if (plantModal) {
+                // Listener para el botón de cerrar del modal de detalles
+                const closeModalBtn = plantModal.querySelector('.close-modal');
+                if (closeModalBtn) {
+                    closeModalBtn.addEventListener('click', () => {
+                        // Solo cerrar si el formulario no está abierto
+                        const formModal = document.getElementById('plantFormModal');
+                        if (!formModal || formModal.classList.contains('hidden')) {
+                            this.closeModal();
+                        }
+                    });
+                }
+                
+                // Listener para cerrar al hacer clic fuera (en el fondo)
                 plantModal.addEventListener('click', (e) => {
-                    if (e.target.id === 'plantModal') this.closeModal();
+                    // Solo cerrar si se hace clic en el fondo Y el formulario no está abierto
+                    if (e.target.id === 'plantModal') {
+                        const formModal = document.getElementById('plantFormModal');
+                        if (!formModal || formModal.classList.contains('hidden')) {
+                            this.closeModal();
+                        }
+                    }
                 });
+                
+                // Observer para detectar cuando el modal se oculta y cerrar la leyenda
+                const observer = new MutationObserver((mutations) => {
+                    mutations.forEach((mutation) => {
+                        if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+                            if (plantModal.classList.contains('hidden')) {
+                                const legendModal = document.getElementById('substrateLegendModal');
+                                if (legendModal && !legendModal.classList.contains('hidden')) {
+                                    legendModal.classList.add('hidden');
+                                }
+                            }
+                        }
+                    });
+                });
+                observer.observe(plantModal, { attributes: true });
             }
 
+
+            // Dual-list selector para enfermedades
+            const addDiseaseBtn = document.getElementById('addDiseaseBtn');
+            const removeDiseaseBtn = document.getElementById('removeDiseaseBtn');
+            if (addDiseaseBtn) {
+                addDiseaseBtn.addEventListener('click', () => this.addDiseasesToSelected());
+            }
+            if (removeDiseaseBtn) {
+                removeDiseaseBtn.addEventListener('click', () => this.removeDiseasesFromSelected());
+            }
 
             // File upload preview
             const plantPhotoFile = document.getElementById('plantPhotoFile');
@@ -643,36 +755,152 @@ class PlantManager {
     openPlantFormModal(plant = null) {
         const modal = document.getElementById('plantFormModal');
         const modalTitle = document.getElementById('plantFormModalTitle');
+        const plantModal = document.getElementById('plantModal');
         
         if (plant) {
             // Editar planta - cargar datos
             this.currentEditingId = plant.id;
             modalTitle.textContent = 'Editar Planta';
             this.loadPlantDataIntoForm(plant);
+            // Guardar datos iniciales para detectar cambios
+            this.saveInitialFormData();
+            
+            // Deshabilitar pointer-events en el modal de detalles para que no intercepte clics
+            if (plantModal && !plantModal.classList.contains('hidden')) {
+                plantModal.style.pointerEvents = 'none';
+            }
         } else {
             // Nueva planta - resetear formulario
             this.currentEditingId = null;
+            this.plantBeforeEdit = null;
             modalTitle.textContent = 'Nueva Planta';
             document.getElementById('plantForm').reset();
+            // Resetear dual-list selector
+            this.initDualListSelector([]);
             this.removePhotoPreview();
             this.initSubstrateSelector(); // Inicializar selector vacío
+            this.initDualListSelector([]); // Resetear dual-list selector
+            this.initialFormData = null;
         }
         
         modal.classList.remove('hidden');
     }
 
+    // Guardar datos iniciales del formulario para detectar cambios
+    saveInitialFormData() {
+        if (!this.currentEditingId) {
+            this.initialFormData = null;
+            return;
+        }
+        
+        this.initialFormData = {
+            name: document.getElementById('plantName').value.trim(),
+            species: document.getElementById('plantSpecies').value.trim(),
+            variety: document.getElementById('plantVariety').value.trim(),
+            type: document.getElementById('plantType').value || '',
+            acquisitionDate: document.getElementById('plantAcquisitionDate').value || null,
+            description: document.getElementById('plantDescription').value.trim(),
+            light: document.getElementById('plantLight').value,
+            temperature: document.getElementById('plantTemperature').value.trim(),
+            humidity: document.getElementById('plantHumidity').value,
+            substrate: this.getSubstrateData(),
+            wateringSpring: document.getElementById('plantWateringSpring').value.trim(),
+            wateringSummer: document.getElementById('plantWateringSummer').value.trim(),
+            wateringAutumn: document.getElementById('plantWateringAutumn').value.trim(),
+            wateringWinter: document.getElementById('plantWateringWinter').value.trim(),
+            poorHealth: document.getElementById('plantPoorHealth').checked,
+            diseases: this.getSelectedDiseases()
+        };
+    }
+
+    // Detectar si hay cambios en el formulario
+    hasFormChanges() {
+        if (!this.initialFormData || !this.currentEditingId) {
+            return false;
+        }
+
+        const currentData = {
+            name: document.getElementById('plantName').value.trim(),
+            species: document.getElementById('plantSpecies').value.trim(),
+            variety: document.getElementById('plantVariety').value.trim(),
+            type: document.getElementById('plantType').value || '',
+            acquisitionDate: document.getElementById('plantAcquisitionDate').value || null,
+            description: document.getElementById('plantDescription').value.trim(),
+            light: document.getElementById('plantLight').value,
+            temperature: document.getElementById('plantTemperature').value.trim(),
+            humidity: document.getElementById('plantHumidity').value,
+            substrate: this.getSubstrateData(),
+            wateringSpring: document.getElementById('plantWateringSpring').value.trim(),
+            wateringSummer: document.getElementById('plantWateringSummer').value.trim(),
+            wateringAutumn: document.getElementById('plantWateringAutumn').value.trim(),
+            wateringWinter: document.getElementById('plantWateringWinter').value.trim(),
+            poorHealth: document.getElementById('plantPoorHealth').checked,
+            diseases: this.getSelectedDiseases()
+        };
+
+        // Comparar objetos (comparación profunda para substrate y diseases)
+        const compareObjects = (obj1, obj2) => {
+            if (obj1 === obj2) return true;
+            if (obj1 == null || obj2 == null) return obj1 === obj2;
+            if (typeof obj1 !== 'object' || typeof obj2 !== 'object') return obj1 === obj2;
+            
+            const keys1 = Object.keys(obj1);
+            const keys2 = Object.keys(obj2);
+            if (keys1.length !== keys2.length) return false;
+            
+            for (let key of keys1) {
+                if (!keys2.includes(key)) return false;
+                if (key === 'substrate') {
+                    if (!compareObjects(obj1[key] || {}, obj2[key] || {})) return false;
+                } else if (key === 'diseases') {
+                    const arr1 = (obj1[key] || []).sort();
+                    const arr2 = (obj2[key] || []).sort();
+                    if (arr1.length !== arr2.length) return false;
+                    if (arr1.some((val, i) => val !== arr2[i])) return false;
+                } else if (obj1[key] !== obj2[key]) {
+                    return false;
+                }
+            }
+            return true;
+        };
+
+        return !compareObjects(this.initialFormData, currentData);
+    }
+
     closePlantFormModal() {
+        // Verificar si hay cambios sin guardar
+        if (this.hasFormChanges()) {
+            if (!confirm('¿Estás seguro de que quieres salir? Tienes cambios sin guardar que se perderán.')) {
+                return; // No cerrar si el usuario cancela
+            }
+        }
+
         const modal = document.getElementById('plantFormModal');
+        const plantModal = document.getElementById('plantModal');
+        
         modal.classList.add('hidden');
         this.currentEditingId = null;
+        this.initialFormData = null;
         document.getElementById('plantForm').reset();
         this.removePhotoPreview();
+        
+        // Restaurar pointer-events en el modal de detalles si estaba abierto
+        if (plantModal && !plantModal.classList.contains('hidden')) {
+            plantModal.style.pointerEvents = 'auto';
+        }
+        
+        // No necesitamos actualizar la ficha aquí porque:
+        // 1. Si se guardó, ya se actualizó en handleFormSubmit()
+        // 2. Si se canceló, no hay cambios que mostrar
+        // 3. La ficha nunca se cerró, así que sigue visible
+        this.plantBeforeEdit = null;
     }
 
     loadPlantDataIntoForm(plant) {
         document.getElementById('plantName').value = plant.name || '';
         document.getElementById('plantSpecies').value = plant.species || '';
         document.getElementById('plantVariety').value = plant.variety || '';
+        document.getElementById('plantType').value = plant.type || '';
         document.getElementById('plantAcquisitionDate').value = plant.acquisitionDate || '';
         document.getElementById('plantDescription').value = plant.description || '';
         document.getElementById('plantLight').value = plant.light || '';
@@ -682,6 +910,15 @@ class PlantManager {
         document.getElementById('plantWateringSummer').value = plant.wateringSummer || '';
         document.getElementById('plantWateringAutumn').value = plant.wateringAutumn || '';
         document.getElementById('plantWateringWinter').value = plant.wateringWinter || '';
+        document.getElementById('plantPoorHealth').checked = plant.poorHealth || false;
+        
+        // Cargar enfermedades seleccionadas en el dual-list
+        this.initDualListSelector(plant.diseases || []);
+        
+        // Guardar datos iniciales después de cargar (con un pequeño delay para asegurar que todo está cargado)
+        setTimeout(() => {
+            this.saveInitialFormData();
+        }, 100);
         
         // Cargar datos de sustrato (puede ser objeto o string antiguo)
         let substrateData = null;
@@ -708,6 +945,82 @@ class PlantManager {
         }
     }
 
+    // Obtener enfermedades seleccionadas del dual-list
+    getSelectedDiseases() {
+        const selectedList = document.getElementById('plantDiseasesSelected');
+        if (!selectedList) return [];
+        return Array.from(selectedList.options).map(option => option.value);
+    }
+
+    // Inicializar el dual-list selector con enfermedades pre-seleccionadas
+    initDualListSelector(selectedDiseases = []) {
+        const availableList = document.getElementById('plantDiseasesAvailable');
+        const selectedList = document.getElementById('plantDiseasesSelected');
+        
+        if (!availableList || !selectedList) return;
+
+        // Limpiar ambas listas
+        availableList.innerHTML = '';
+        selectedList.innerHTML = '';
+
+        // Lista completa de enfermedades
+        const allDiseases = [
+            'Cochinilla algodonosa',
+            'Pulgón',
+            'Araña roja',
+            'Trips',
+            'Mosca del sustrato (sciáridos)',
+            'Mosca blanca',
+            'Hormigas',
+            'Caracoles/babosas (exterior)',
+            'Orugas (exterior)',
+            'Nematodos',
+            'Oídio',
+            'Mildiu',
+            'Negrilla/fumagina',
+            'Podredumbre radicular',
+            'Roya'
+        ];
+
+        // Separar disponibles y seleccionadas
+        allDiseases.forEach(disease => {
+            const option = document.createElement('option');
+            option.value = disease;
+            option.textContent = disease;
+            
+            if (selectedDiseases.includes(disease)) {
+                selectedList.appendChild(option);
+            } else {
+                availableList.appendChild(option);
+            }
+        });
+    }
+
+    // Añadir enfermedades seleccionadas de disponibles a seleccionadas
+    addDiseasesToSelected() {
+        const availableList = document.getElementById('plantDiseasesAvailable');
+        const selectedList = document.getElementById('plantDiseasesSelected');
+        
+        if (!availableList || !selectedList) return;
+
+        const selectedOptions = Array.from(availableList.selectedOptions);
+        selectedOptions.forEach(option => {
+            selectedList.appendChild(option);
+        });
+    }
+
+    // Quitar enfermedades seleccionadas de seleccionadas a disponibles
+    removeDiseasesFromSelected() {
+        const availableList = document.getElementById('plantDiseasesAvailable');
+        const selectedList = document.getElementById('plantDiseasesSelected');
+        
+        if (!availableList || !selectedList) return;
+
+        const selectedOptions = Array.from(selectedList.selectedOptions);
+        selectedOptions.forEach(option => {
+            availableList.appendChild(option);
+        });
+    }
 
     handleFileSelect(file) {
         if (!file || !file.type.startsWith('image/')) {
@@ -821,6 +1134,7 @@ class PlantManager {
             name: document.getElementById('plantName').value.trim(),
             species: document.getElementById('plantSpecies').value.trim(),
             variety: document.getElementById('plantVariety').value.trim(),
+            type: document.getElementById('plantType').value || '',
             acquisitionDate: document.getElementById('plantAcquisitionDate').value || null,
             photos: photoData ? [...(this.normalizePlantData(existingPlant || {}).photos || []), photoData] : (existingPlant ? this.normalizePlantData(existingPlant).photos : []) || ['https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=400'],
             description: document.getElementById('plantDescription').value.trim(),
@@ -833,6 +1147,8 @@ class PlantManager {
             wateringAutumn: document.getElementById('plantWateringAutumn').value.trim(),
             wateringWinter: document.getElementById('plantWateringWinter').value.trim(),
             wateringDates: existingPlant ? (this.normalizePlantData(existingPlant).wateringDates || []) : [],
+            poorHealth: document.getElementById('plantPoorHealth').checked,
+            diseases: this.getSelectedDiseases(),
             comments: existingPlant?.comments || [],
             createdAt: existingPlant?.createdAt || new Date().toISOString()
         };
@@ -859,6 +1175,15 @@ class PlantManager {
         }
 
         this.renderPlants();
+        
+        // Si había una ficha abierta antes de editar, actualizarla con los nuevos datos
+        if (this.plantBeforeEdit && this.currentEditingId) {
+            const updatedPlant = this.plants.find(p => p.id === this.currentEditingId);
+            if (updatedPlant) {
+                this.showPlantDetails(updatedPlant);
+            }
+        }
+        
         this.closePlantFormModal();
         this.showNotification(this.currentEditingId ? 'Planta actualizada' : 'Planta agregada', 'success');
     }
@@ -946,20 +1271,19 @@ class PlantManager {
                         <h3 class="plant-card-title">${this.escapeHtml(plant.name)}</h3>
                         <p class="plant-card-species">${this.escapeHtml(plant.species)}${plant.variety ? ' - ' + this.escapeHtml(plant.variety) : ''}</p>
                     </div>
+                    ${plant.poorHealth ? `
+                        <div class="poor-health-indicator" title="Planta en mala salud">
+                            <img src="img/icons/warning.svg" alt="Mala salud" class="poor-health-icon">
+                        </div>
+                    ` : ''}
                 </div>
                 <img src="${lastPhoto}" alt="${this.escapeHtml(plant.name)}" class="plant-card-image" 
                      onerror="if(this.src !== 'https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=400') { plantManager.removeInvalidPhoto('${plant.id}', this.src).then(() => { this.src='https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=400'; }); } else { this.src='https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=400'; }">
                 <div class="plant-card-info">
-                    ${plant.acquisitionDate ? `
+                    ${plant.type ? `
                         <div class="info-item">
-                            <span class="info-label"><img src="img/icons/date.svg" alt="Fecha" class="info-icon"> Adquirida:</span>
-                            <span class="info-value">${this.formatAcquisitionDate(plant.acquisitionDate)}</span>
-                        </div>
-                    ` : ''}
-                    ${plant.light ? `
-                        <div class="info-item">
-                            <span class="info-label"><img src="img/icons/sun.svg" alt="Luz" class="info-icon"> Luz:</span>
-                            <span class="info-value">${this.escapeHtml(plant.light)}</span>
+                            <span class="info-label"><img src="img/icons/plant-type.svg" alt="Tipo" class="info-icon"> Tipo:</span>
+                            <span class="info-value">${this.escapeHtml(plant.type)}</span>
                         </div>
                     ` : ''}
                     <div class="info-item">
@@ -1013,18 +1337,34 @@ class PlantManager {
     }
 
     editPlant(plant) {
-        this.closeModal(); // Cerrar modal de detalles si está abierto
+        // Guardar la planta que estaba abierta antes de editar (pero NO cerrar el modal)
+        const plantModal = document.getElementById('plantModal');
+        if (plantModal && !plantModal.classList.contains('hidden')) {
+            this.plantBeforeEdit = plant;
+        } else {
+            this.plantBeforeEdit = null;
+        }
+        // NO cerrar el modal de detalles - el formulario se abrirá encima
         this.openPlantFormModal(plant);
     }
 
-    async deletePlant(plantId) {
-        if (confirm('¿Estás seguro de que quieres eliminar esta planta?')) {
-            this.plants = this.plants.filter(p => p.id !== plantId);
-            await this.deletePlantFromStorage(plantId);
-            await this.savePlants();
-            this.renderPlants();
-            this.showNotification('Planta eliminada', 'success');
+    async deletePlant(plantId, skipConfirm = false) {
+        // Mostrar confirmación si no se ha saltado
+        if (!skipConfirm && !confirm('¿Estás seguro de que quieres eliminar esta planta?')) {
+            return false; // Retornar false si se cancela
         }
+        
+        // Si skipConfirm es true, mostrar confirmación aquí (para el botón de la ficha de detalles)
+        if (skipConfirm && !confirm('¿Estás seguro de que quieres eliminar esta planta?')) {
+            return false; // Retornar false si se cancela
+        }
+        
+        this.plants = this.plants.filter(p => p.id !== plantId);
+        await this.deletePlantFromStorage(plantId);
+        await this.savePlants();
+        this.renderPlants();
+        this.showNotification('Planta eliminada', 'success');
+        return true; // Retornar true si se eliminó correctamente
     }
 
     generateWateringCalendar(wateringDates, plantId) {
@@ -1308,27 +1648,42 @@ class PlantManager {
             }).join('')
             : '<p style="color: var(--text-muted);">No hay comentarios aún.</p>';
 
+        const currentPhotoIndex = this.modalPhotoIndex[plant.id] !== undefined ? this.modalPhotoIndex[plant.id] : photos.length - 1;
+        
         const photoCarouselHtml = photos.length > 1 ? `
             <div class="photo-carousel-modal">
                 <div class="carousel-main-photo">
-                    <img src="${lastPhoto}" alt="${this.escapeHtml(plant.name)}" class="modal-image carousel-main-img" id="modalMainPhoto-${plant.id}" onclick="plantManager.openPhotoLightbox('${plant.id}', ${photos.length - 1})" style="cursor: pointer;"
+                    <img src="${photos[currentPhotoIndex]}" alt="${this.escapeHtml(plant.name)}" class="modal-image carousel-main-img" id="modalMainPhoto-${plant.id}" onclick="plantManager.openPhotoLightbox('${plant.id}', ${currentPhotoIndex})" style="cursor: pointer;"
                          onerror="if(this.src !== 'https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=800') { plantManager.removeInvalidPhoto('${plant.id}', this.src).then(() => { this.src='https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=800'; }); } else { this.src='https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=800'; }">
-                    ${photos.length > 1 ? `
-                        <button class="carousel-nav prev" onclick="event.stopPropagation(); plantManager.changeModalPhoto('${plant.id}', 'prev')">‹</button>
-                        <button class="carousel-nav next" onclick="event.stopPropagation(); plantManager.changeModalPhoto('${plant.id}', 'next')">›</button>
-                    ` : ''}
+                    <button class="carousel-delete-btn" onclick="event.stopPropagation(); plantManager.deletePhoto('${plant.id}', '${photos[currentPhotoIndex]}', ${currentPhotoIndex})" title="Eliminar foto">
+                        <img src="img/icons/delete.svg" alt="Eliminar" class="carousel-delete-icon">
+                    </button>
+                    <button class="carousel-nav prev" onclick="event.stopPropagation(); plantManager.changeModalPhoto('${plant.id}', 'prev')">‹</button>
+                    <button class="carousel-nav next" onclick="event.stopPropagation(); plantManager.changeModalPhoto('${plant.id}', 'next')">›</button>
                 </div>
                 <div class="carousel-thumbnails">
                     ${photos.map((photo, index) => `
-                        <img src="${photo}" alt="Foto ${index + 1}" class="carousel-thumb ${index === photos.length - 1 ? 'active' : ''}" 
-                             onclick="plantManager.selectModalPhoto('${plant.id}', ${index})" data-index="${index}"
-                             onerror="if(this.src !== 'https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=800') { plantManager.removeInvalidPhoto('${plant.id}', this.src); this.style.display='none'; }">
+                        <div class="carousel-thumb-wrapper">
+                            <img src="${photo}" alt="Foto ${index + 1}" class="carousel-thumb ${index === currentPhotoIndex ? 'active' : ''}" 
+                                 onclick="plantManager.selectModalPhoto('${plant.id}', ${index})" data-index="${index}"
+                                 onerror="if(this.src !== 'https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=800') { plantManager.removeInvalidPhoto('${plant.id}', this.src); this.style.display='none'; }">
+                            <button class="carousel-thumb-delete-btn" onclick="event.stopPropagation(); plantManager.deletePhoto('${plant.id}', '${photo}', ${index})" title="Eliminar foto">
+                                <img src="img/icons/delete.svg" alt="Eliminar" class="carousel-thumb-delete-icon">
+                            </button>
+                        </div>
                     `).join('')}
                 </div>
             </div>
         ` : `
-            <img src="${lastPhoto}" alt="${this.escapeHtml(plant.name)}" class="modal-image carousel-main-img" onclick="plantManager.openPhotoLightbox('${plant.id}', 0)" style="cursor: pointer;"
-                 onerror="if(this.src !== 'https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=800') { plantManager.removeInvalidPhoto('${plant.id}', this.src).then(() => { this.src='https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=800'; }); } else { this.src='https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=800'; }">
+            <div class="photo-carousel-modal">
+                <div class="carousel-main-photo">
+                    <img src="${lastPhoto}" alt="${this.escapeHtml(plant.name)}" class="modal-image carousel-main-img" onclick="plantManager.openPhotoLightbox('${plant.id}', 0)" style="cursor: pointer;"
+                         onerror="if(this.src !== 'https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=800') { plantManager.removeInvalidPhoto('${plant.id}', this.src).then(() => { this.src='https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=800'; }); } else { this.src='https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=800'; }">
+                    <button class="carousel-delete-btn" onclick="event.stopPropagation(); plantManager.deletePhoto('${plant.id}', '${lastPhoto}', 0)" title="Eliminar foto">
+                        <img src="img/icons/delete.svg" alt="Eliminar" class="carousel-delete-icon">
+                    </button>
+                </div>
+            </div>
         `;
 
         modalBody.innerHTML = `
@@ -1356,12 +1711,40 @@ class PlantManager {
                     </div>
                 ` : ''}
 
+                ${plant.poorHealth ? `
+                    <div class="modal-section poor-health-section">
+                        <div class="info-item">
+                            <span class="info-label"><img src="img/icons/warning.svg" alt="Advertencia" class="info-icon"> Estado de Salud:</span>
+                            <span class="info-value poor-health-badge">⚠️ Planta en mala salud</span>
+                        </div>
+                    </div>
+                ` : ''}
+
+                ${plant.diseases && plant.diseases.length > 0 ? `
+                    <div class="modal-section diseases-section">
+                        <div class="info-item">
+                            <span class="info-label"><img src="img/icons/virus.svg" alt="Enfermedades" class="info-icon"> Enfermedades/Plagas:</span>
+                            <div class="diseases-pills">
+                                ${plant.diseases.map(disease => `
+                                    <span class="disease-pill">${this.escapeHtml(disease)}</span>
+                                `).join('')}
+                            </div>
+                        </div>
+                    </div>
+                ` : ''}
+
                 <div class="modal-section">
                     <h3>Información de Cuidados</h3>
                     ${plant.variety ? `
                         <div class="info-item">
                             <span class="info-label"><img src="img/icons/monstera.svg" alt="Variación" class="info-icon"> Variación:</span>
                             <span class="info-value">${this.escapeHtml(plant.variety)}</span>
+                        </div>
+                    ` : ''}
+                    ${plant.type ? `
+                        <div class="info-item">
+                            <span class="info-label"><img src="img/icons/plant-type.svg" alt="Tipo" class="info-icon"> Tipo de Planta:</span>
+                            <span class="info-value">${this.escapeHtml(plant.type)}</span>
                         </div>
                     ` : ''}
                     ${plant.acquisitionDate ? `
@@ -1398,7 +1781,7 @@ class PlantManager {
                     ` : ''}
                     ${(plant.wateringSpring || plant.wateringSummer || plant.wateringAutumn || plant.wateringWinter) ? `
                         <div style="margin-top: 15px;">
-                            <strong style="color: var(--light-green); display: block; margin-bottom: 10px;">Frecuencia de Riego por Estación:</strong>
+                            <strong style="color: var(--light-green); display: block; margin-bottom: 10px;">Frecuencia de Riego por Estación (días):</strong>
                             ${plant.wateringSpring ? `
                                 <div class="info-item">
                                     <span class="info-label">🌱 Primavera:</span>
@@ -1457,10 +1840,10 @@ class PlantManager {
                     <button class="btn-action btn-water-action" onclick="(async () => { await plantManager.updateWatering('${plant.id}'); plantManager.closeModal(); })();" title="Registrar Riego">
                         <img src="img/icons/water-drop.svg" alt="Regar" class="btn-action-icon">
                     </button>
-                    <button class="btn-action btn-edit-action" onclick="plantManager.editPlant(plantManager.plants.find(p => p.id === '${plant.id}')); plantManager.closeModal();" title="Editar">
+                    <button class="btn-action btn-edit-action" onclick="plantManager.editPlant(plantManager.plants.find(p => p.id === '${plant.id}'));" title="Editar">
                         <img src="img/icons/edit.svg" alt="Editar" class="btn-action-icon">
                     </button>
-                    <button class="btn-action btn-delete-action" onclick="plantManager.deletePlant('${plant.id}'); plantManager.closeModal();" title="Eliminar">
+                    <button class="btn-action btn-delete-action" onclick="(async () => { const deleted = await plantManager.deletePlant('${plant.id}', true); if(deleted) { plantManager.closeModal(); } })();" title="Eliminar">
                         <img src="img/icons/delete.svg" alt="Eliminar" class="btn-action-icon">
                     </button>
                 </div>
@@ -1565,6 +1948,95 @@ class PlantManager {
             }
         };
         input.click();
+    }
+
+    // Extraer el path del archivo desde una URL de Firebase Storage
+    extractStoragePathFromUrl(url) {
+        try {
+            // Si es una URL de Firebase Storage, extraer el path
+            if (url.includes('firebasestorage.googleapis.com')) {
+                const urlObj = new URL(url);
+                const pathMatch = urlObj.pathname.match(/\/o\/(.+)\?/);
+                if (pathMatch) {
+                    // Decodificar el path (Firebase Storage codifica los caracteres especiales)
+                    return decodeURIComponent(pathMatch[1]);
+                }
+            }
+            // Si no es una URL de Firebase Storage, retornar null
+            return null;
+        } catch (error) {
+            console.error('Error extrayendo path de URL:', error);
+            return null;
+        }
+    }
+
+    async deletePhoto(plantId, photoUrl, photoIndex) {
+        if (!confirm('¿Estás seguro de que quieres eliminar esta foto?')) {
+            return;
+        }
+
+        const plant = this.plants.find(p => p.id === plantId);
+        if (!plant) return;
+
+        try {
+            const normalizedPlant = this.normalizePlantData(plant);
+            const photos = normalizedPlant.photos || [];
+
+            // Si hay fotos en Firebase Storage, intentar borrarlas primero
+            if (this.useFirebase && this.storage) {
+                try {
+                    // Usar refFromURL para obtener la referencia directamente desde la URL
+                    const imageRef = this.storage.refFromURL(photoUrl);
+                    await imageRef.delete();
+                    console.log('✅ Foto eliminada de Firebase Storage:', photoUrl);
+                } catch (error) {
+                    console.warn('⚠️ No se pudo eliminar la foto de Storage (puede que ya no exista o no sea de Firebase):', error);
+                    // Continuar aunque falle el borrado de Storage (puede ser una URL externa)
+                }
+            }
+
+            // Eliminar la foto del array
+            const updatedPhotos = photos.filter((photo, index) => index !== photoIndex);
+
+            // Actualizar la planta
+            normalizedPlant.photos = updatedPhotos;
+            const index = this.plants.findIndex(p => p.id === plantId);
+            if (index !== -1) {
+                this.plants[index] = normalizedPlant;
+            }
+
+            // Guardar en Firebase/LocalStorage
+            await this.savePlantToFirebase(normalizedPlant);
+            
+            // Si no quedan fotos, usar la imagen por defecto
+            if (updatedPhotos.length === 0) {
+                normalizedPlant.photos = [];
+                // Limpiar el índice del carousel
+                delete this.modalPhotoIndex[plantId];
+            } else {
+                // Ajustar el índice del carousel si es necesario
+                const currentIndex = this.modalPhotoIndex[plantId] !== undefined ? this.modalPhotoIndex[plantId] : photos.length - 1;
+                if (photoIndex <= currentIndex) {
+                    // Si se borró una foto antes o igual a la actual, ajustar el índice
+                    let newIndex = currentIndex - 1;
+                    if (newIndex < 0) newIndex = 0;
+                    if (newIndex >= updatedPhotos.length) newIndex = updatedPhotos.length - 1;
+                    this.modalPhotoIndex[plantId] = newIndex;
+                } else {
+                    // Si se borró una foto después de la actual, mantener el índice
+                    if (this.modalPhotoIndex[plantId] >= updatedPhotos.length) {
+                        this.modalPhotoIndex[plantId] = updatedPhotos.length - 1;
+                    }
+                }
+            }
+
+            // Refrescar la vista
+            this.showPlantDetails(normalizedPlant);
+            this.showNotification('Foto eliminada correctamente', 'success');
+        } catch (error) {
+            console.error('Error eliminando foto:', error);
+            this.showNotification('Error eliminando foto', 'error');
+        }
     }
 
     async addComment(plantId) {
@@ -1683,6 +2155,11 @@ class PlantManager {
 
     closeModal() {
         document.getElementById('plantModal').classList.add('hidden');
+        // Cerrar también el modal de la leyenda de sustratos si está abierto
+        const legendModal = document.getElementById('substrateLegendModal');
+        if (legendModal) {
+            legendModal.classList.add('hidden');
+        }
     }
 
     // Filtros y búsqueda
@@ -1702,14 +2179,22 @@ class PlantManager {
         switch(filterType) {
             case 'needs-water':
                 filtered = this.plants.filter(plant => {
-                    if (!plant.lastWatered) return true;
-                    return this.daysSince(plant.lastWatered) >= 7;
+                    const normalizedPlant = this.normalizePlantData(plant);
+                    const wateringDates = normalizedPlant.wateringDates || [];
+                    if (wateringDates.length === 0) return true;
+                    const lastWatering = new Date(wateringDates[0]);
+                    return this.daysSince(lastWatering.toISOString()) >= 7;
                 });
                 break;
             case 'recent':
                 filtered = this.plants.filter(plant => {
                     if (!plant.createdAt) return false;
                     return this.daysSince(plant.createdAt) <= 7;
+                });
+                break;
+            case 'poor-health':
+                filtered = this.plants.filter(plant => {
+                    return plant.poorHealth === true;
                 });
                 break;
             default:

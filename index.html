@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>My Green Diary - Diario de Plantas</title>
+    <link rel="icon" type="image/png" href="img/favicon.png">
     <link rel="stylesheet" href="styles.css">
     
     <!-- Firebase SDK -->
@@ -40,6 +41,7 @@
                 <button class="filter-btn active" data-filter="all">Todas</button>
                 <button class="filter-btn" data-filter="needs-water">Necesitan Riego</button>
                 <button class="filter-btn" data-filter="recent">Recientes</button>
+                <button class="filter-btn" data-filter="poor-health">Mala Salud</button>
             </div>
             <div class="advanced-filters">
                 <button id="toggleFiltersBtn" class="btn-secondary btn-small">
@@ -106,18 +108,47 @@
                             <label for="plantSpecies">Especie *</label>
                             <input type="text" id="plantSpecies" required placeholder="Ej: Monstera deliciosa">
                         </div>
+                    </div>
 
+                    <div class="form-row-grid">
                         <div class="form-group">
                             <label for="plantVariety">Variación</label>
                             <input type="text" id="plantVariety" placeholder="Ej: Variegata, Albo, etc.">
                         </div>
 
                         <div class="form-group">
-                            <label for="plantAcquisitionDate">
-                                <img src="img/icons/date.svg" alt="Fecha" class="label-icon"> Fecha de Adquisición
-                            </label>
-                            <input type="date" id="plantAcquisitionDate">
+                            <label for="plantType">Tipo de Planta</label>
+                            <select id="plantType">
+                                <option value="">Seleccionar...</option>
+                                <option value="Planta verde">Planta verde</option>
+                                <option value="Trepadora">Trepadora</option>
+                                <option value="Colgante">Colgante</option>
+                                <option value="Suculenta">Suculenta</option>
+                                <option value="Cactus">Cactus</option>
+                                <option value="Planta de flor">Planta de flor</option>
+                                <option value="Planta aromática">Planta aromática</option>
+                                <option value="Planta acuática">Planta acuática</option>
+                                <option value="Bonsái">Bonsái</option>
+                                <option value="Palmera">Palmera</option>
+                                <option value="Helecho">Helecho</option>
+                                <option value="Bulbosa">Bulbosa</option>
+                                <option value="Orquídea">Orquídea</option>
+                                <option value="Carnívora">Carnívora</option>
+                                <option value="Epífita">Epífita</option>
+                                <option value="Tapizante">Tapizante</option>
+                                <option value="Arbusto">Arbusto</option>
+                                <option value="Árbol">Árbol</option>
+                                <option value="Bambú">Bambú</option>
+                                <option value="Planta aérea">Planta aérea</option>
+                            </select>
                         </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="plantAcquisitionDate">
+                            <img src="img/icons/date.svg" alt="Fecha" class="label-icon"> Fecha de Adquisición
+                        </label>
+                        <input type="date" id="plantAcquisitionDate">
                     </div>
 
                     <div class="form-group">
@@ -179,7 +210,9 @@
                     </div>
 
                     <div class="form-group">
-                        <label for="plantSubstrate">Mezcla de Sustrato</label>
+                        <label for="plantSubstrate">
+                            <img src="img/icons/plant.svg" alt="Sustrato" class="label-icon"> Mezcla de Sustrato
+                        </label>
                         <div id="substrateSelector" class="substrate-selector">
                             <div class="substrate-controls">
                                 <div class="substrate-list" id="substrateList"></div>
@@ -195,7 +228,9 @@
                     </div>
 
                     <div class="form-group">
-                        <label>Frecuencia de Riego por Estación</label>
+                        <label>
+                            <img src="img/icons/water-drop.svg" alt="Riego" class="label-icon"> Frecuencia de Riego por Estación (Días)
+                        </label>
                         <div class="form-row-grid">
                             <div class="form-group">
                                 <label for="plantWateringSpring">Primavera</label>
@@ -212,6 +247,58 @@
                             <div class="form-group">
                                 <label for="plantWateringWinter">Invierno</label>
                                 <input type="text" id="plantWateringWinter" placeholder="Ej: Cada 10-14 días">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="switch-label">
+                            <img src="img/icons/warning.svg" alt="Advertencia" class="label-icon">
+                            <span>Planta en mala salud</span>
+                            <label class="switch">
+                                <input type="checkbox" id="plantPoorHealth">
+                                <span class="slider"></span>
+                            </label>
+                        </label>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="plantDiseases">
+                            <img src="img/icons/virus.svg" alt="Enfermedades" class="label-icon"> Enfermedades/Plagas
+                        </label>
+                        <div class="dual-list-selector">
+                            <div class="dual-list-box">
+                                <div class="dual-list-label">Disponibles</div>
+                                <select id="plantDiseasesAvailable" multiple size="10" class="dual-list-select">
+                                    <option value="Cochinilla algodonosa">Cochinilla algodonosa</option>
+                                    <option value="Pulgón">Pulgón</option>
+                                    <option value="Araña roja">Araña roja</option>
+                                    <option value="Trips">Trips</option>
+                                    <option value="Mosca del sustrato (sciáridos)">Mosca del sustrato (sciáridos)</option>
+                                    <option value="Mosca blanca">Mosca blanca</option>
+                                    <option value="Hormigas">Hormigas</option>
+                                    <option value="Caracoles/babosas (exterior)">Caracoles/babosas (exterior)</option>
+                                    <option value="Orugas (exterior)">Orugas (exterior)</option>
+                                    <option value="Nematodos">Nematodos</option>
+                                    <option value="Oídio">Oídio</option>
+                                    <option value="Mildiu">Mildiu</option>
+                                    <option value="Negrilla/fumagina">Negrilla/fumagina</option>
+                                    <option value="Podredumbre radicular">Podredumbre radicular</option>
+                                    <option value="Roya">Roya</option>
+                                </select>
+                            </div>
+                            <div class="dual-list-buttons">
+                                <button type="button" class="dual-list-btn" id="addDiseaseBtn" title="Añadir seleccionadas">
+                                    <img src="img/icons/plus.svg" alt="Añadir" class="dual-list-btn-icon">
+                                </button>
+                                <button type="button" class="dual-list-btn" id="removeDiseaseBtn" title="Quitar seleccionadas">
+                                    <img src="img/icons/minus.svg" alt="Quitar" class="dual-list-btn-icon">
+                                </button>
+                            </div>
+                            <div class="dual-list-box">
+                                <div class="dual-list-label">Seleccionadas</div>
+                                <select id="plantDiseasesSelected" multiple size="10" class="dual-list-select">
+                                </select>
                             </div>
                         </div>
                     </div>
@@ -241,7 +328,6 @@
         <!-- Modal para leyenda de sustratos -->
         <div id="substrateLegendModal" class="modal hidden">
             <div class="modal-content glass-panel substrate-legend-modal-content">
-                <span class="close-modal" onclick="document.getElementById('substrateLegendModal').classList.add('hidden')">&times;</span>
                 <h2 style="color: var(--light-green); margin-bottom: 20px;">Leyenda de Sustratos</h2>
                 <div id="substrateLegendList" class="substrate-legend-list"></div>
             </div>
