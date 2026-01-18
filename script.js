@@ -1183,7 +1183,12 @@ class PlantManager {
     async handleFormSubmit(e) {
         e.preventDefault();
         
-        const photoData = await this.getPhotoData();
+        // Deshabilitar página y mostrar toast de guardando
+        this.disablePage();
+        this.showSavingToast();
+        
+        try {
+            const photoData = await this.getPhotoData();
         const existingPlant = this.currentEditingId ? this.plants.find(p => p.id === this.currentEditingId) : null;
         
         // Obtener fotos existentes normalizadas (sin duplicados)
@@ -1250,18 +1255,26 @@ class PlantManager {
             }
         }
 
-        this.renderPlants();
-        
-        // Si había una ficha abierta antes de editar, actualizarla con los nuevos datos
-        if (this.plantBeforeEdit && this.currentEditingId) {
-            const updatedPlant = this.plants.find(p => p.id === this.currentEditingId);
-            if (updatedPlant) {
-                this.showPlantDetails(updatedPlant);
+            this.renderPlants();
+            
+            // Si había una ficha abierta antes de editar, actualizarla con los nuevos datos
+            if (this.plantBeforeEdit && this.currentEditingId) {
+                const updatedPlant = this.plants.find(p => p.id === this.currentEditingId);
+                if (updatedPlant) {
+                    this.showPlantDetails(updatedPlant);
+                }
             }
+            
+            this.closePlantFormModal();
+            this.hideSavingToast();
+            this.enablePage();
+            this.showNotification(this.currentEditingId ? 'Planta actualizada' : 'Planta agregada', 'success');
+        } catch (error) {
+            console.error('Error guardando planta:', error);
+            this.hideSavingToast();
+            this.enablePage();
+            this.showNotification('Error al guardar la planta', 'error');
         }
-        
-        this.closePlantFormModal();
-        this.showNotification(this.currentEditingId ? 'Planta actualizada' : 'Planta agregada', 'success');
     }
 
     // Renderizado
@@ -2167,24 +2180,37 @@ class PlantManager {
             return;
         }
 
-        const plant = this.plants.find(p => p.id === plantId);
-        if (plant) {
-            if (!plant.comments) {
-                plant.comments = [];
+        // Deshabilitar página y mostrar toast de guardando
+        this.disablePage();
+        this.showSavingToast();
+
+        try {
+            const plant = this.plants.find(p => p.id === plantId);
+            if (plant) {
+                if (!plant.comments) {
+                    plant.comments = [];
+                }
+                plant.comments.push({
+                    id: `${plantId}-comment-${Date.now()}`,
+                    date: new Date().toISOString(),
+                    text: commentText
+                });
+                await this.savePlants();
+                this.showPlantDetails(plant);
+                document.getElementById('newComment').value = '';
+                const container = document.getElementById('newCommentContainer');
+                if (container) {
+                    container.classList.add('hidden');
+                }
+                this.hideSavingToast();
+                this.enablePage();
+                this.showNotification('Comentario agregado', 'success');
             }
-            plant.comments.push({
-                id: `${plantId}-comment-${Date.now()}`,
-                date: new Date().toISOString(),
-                text: commentText
-            });
-            await this.savePlants();
-            this.showPlantDetails(plant);
-            document.getElementById('newComment').value = '';
-            const container = document.getElementById('newCommentContainer');
-            if (container) {
-                container.classList.add('hidden');
-            }
-            this.showNotification('Comentario agregado', 'success');
+        } catch (error) {
+            console.error('Error guardando comentario:', error);
+            this.hideSavingToast();
+            this.enablePage();
+            this.showNotification('Error al guardar el comentario', 'error');
         }
     }
 
@@ -2210,17 +2236,30 @@ class PlantManager {
             return;
         }
 
-        const comment = plant.comments.find(c => c.id === commentId);
-        if (comment) {
-            comment.text = newText;
-            comment.editedAt = new Date().toISOString();
-            // Guardar individualmente en Firebase
-            const saved = await this.savePlantToFirebase(plant);
-            if (!saved) {
-                await this.savePlants(); // Fallback
+        // Deshabilitar página y mostrar toast de guardando
+        this.disablePage();
+        this.showSavingToast();
+
+        try {
+            const comment = plant.comments.find(c => c.id === commentId);
+            if (comment) {
+                comment.text = newText;
+                comment.editedAt = new Date().toISOString();
+                // Guardar individualmente en Firebase
+                const saved = await this.savePlantToFirebase(plant);
+                if (!saved) {
+                    await this.savePlants(); // Fallback
+                }
+                this.showPlantDetails(plant);
+                this.hideSavingToast();
+                this.enablePage();
+                this.showNotification('Comentario actualizado', 'success');
             }
-            this.showPlantDetails(plant);
-            this.showNotification('Comentario actualizado', 'success');
+        } catch (error) {
+            console.error('Error guardando comentario:', error);
+            this.hideSavingToast();
+            this.enablePage();
+            this.showNotification('Error al actualizar el comentario', 'error');
         }
     }
 
@@ -2436,6 +2475,83 @@ class PlantManager {
         return div.innerHTML;
     }
 
+    // Deshabilitar página durante guardado
+    disablePage() {
+        // Crear overlay de bloqueo
+        const overlay = document.createElement('div');
+        overlay.id = 'savingOverlay';
+        overlay.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 9999;
+            pointer-events: all;
+            cursor: wait;
+        `;
+        document.body.appendChild(overlay);
+        
+        // Deshabilitar todos los elementos interactivos
+        document.body.style.pointerEvents = 'none';
+        document.body.style.userSelect = 'none';
+    }
+
+    // Habilitar página después de guardar
+    enablePage() {
+        // Remover overlay
+        const overlay = document.getElementById('savingOverlay');
+        if (overlay) {
+            overlay.remove();
+        }
+        
+        // Restaurar interacciones
+        document.body.style.pointerEvents = '';
+        document.body.style.userSelect = '';
+    }
+
+    // Mostrar toast persistente de guardando
+    showSavingToast() {
+        // Remover toast anterior si existe
+        const existingToast = document.getElementById('savingToast');
+        if (existingToast) {
+            existingToast.remove();
+        }
+        
+        const toast = document.createElement('div');
+        toast.id = 'savingToast';
+        toast.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: var(--accent-green);
+            color: white;
+            padding: 15px 25px;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            z-index: 10000;
+            animation: slideIn 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        `;
+        toast.innerHTML = `
+            <div style="width: 20px; height: 20px; border: 3px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+            <span>Guardando...</span>
+        `;
+        document.body.appendChild(toast);
+    }
+
+    // Ocultar toast de guardando
+    hideSavingToast() {
+        const toast = document.getElementById('savingToast');
+        if (toast) {
+            toast.style.animation = 'slideOut 0.3s ease';
+            setTimeout(() => toast.remove(), 300);
+        }
+    }
+
     showNotification(message, type = 'success') {
         // Crear notificación temporal
         const notification = document.createElement('div');
@@ -2461,11 +2577,79 @@ class PlantManager {
     }
 }
 
-// Inicializar la aplicación
-let plantManager;
+// Función para hashear contraseña usando SHA-256
+async function hashPassword(password) {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(password);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    return hashHex;
+}
 
-// Esperar a que el DOM esté listo Y que Firebase esté cargado
-document.addEventListener('DOMContentLoaded', () => {
+// Inicializar autenticación
+let isAuthenticated = false;
+let correctPasswordHash = null;
+
+async function initAuth() {
+    // Calcular el hash de la contraseña correcta una sola vez
+    if (!correctPasswordHash) {
+        correctPasswordHash = await hashPassword('bichito21');
+    }
+    
+    const authModal = document.getElementById('authModal');
+    const mainContent = document.getElementById('mainContent');
+    const authForm = document.getElementById('authForm');
+    const authPassword = document.getElementById('authPassword');
+    const authError = document.getElementById('authError');
+    
+    // Verificar si ya está autenticado (en sessionStorage)
+    const sessionAuth = sessionStorage.getItem('authenticated');
+    if (sessionAuth === 'true') {
+        isAuthenticated = true;
+        authModal.classList.add('hidden');
+        mainContent.style.display = 'block';
+        initApp();
+        return;
+    }
+    
+    // Mostrar modal de autenticación
+    authModal.classList.remove('hidden');
+    mainContent.style.display = 'none';
+    
+    authForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const password = authPassword.value.trim();
+        
+        if (!password) {
+            authError.textContent = 'Por favor, introduce una clave';
+            authError.style.display = 'block';
+            return;
+        }
+        
+        // Hashear la contraseña ingresada
+        const inputHash = await hashPassword(password);
+        
+        // Comparar con el hash correcto
+        if (inputHash === correctPasswordHash) {
+            isAuthenticated = true;
+            sessionStorage.setItem('authenticated', 'true');
+            authModal.classList.add('hidden');
+            mainContent.style.display = 'block';
+            authPassword.value = '';
+            authError.style.display = 'none';
+            initApp();
+        } else {
+            authError.textContent = 'Clave incorrecta. Inténtalo de nuevo.';
+            authError.style.display = 'block';
+            authPassword.value = '';
+            authPassword.focus();
+        }
+    });
+}
+
+// Inicializar la aplicación después de autenticación
+function initApp() {
     // Pequeño delay para asegurar que Firebase esté cargado
     setTimeout(() => {
         try {
@@ -2476,7 +2660,14 @@ document.addEventListener('DOMContentLoaded', () => {
             plantManager = new PlantManager();
         }
     }, 100);
+}
+
+// Inicializar autenticación cuando el DOM esté listo
+document.addEventListener('DOMContentLoaded', () => {
+    initAuth();
 });
+
+let plantManager;
 
 // Agregar estilos de animación para notificaciones
 const style = document.createElement('style');
@@ -2499,6 +2690,14 @@ style.textContent = `
         to {
             transform: translateX(400px);
             opacity: 0;
+        }
+    }
+    @keyframes spin {
+        from {
+            transform: rotate(0deg);
+        }
+        to {
+            transform: rotate(360deg);
         }
     }
 `;

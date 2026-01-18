@@ -676,7 +676,7 @@ small {
 }
 
 .plant-modal-content {
-    width: auto;
+    width: 100%;
     max-width: 900px;
 }
 

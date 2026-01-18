@@ -14,7 +14,24 @@
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
 </head>
 <body>
-    <div class="container">
+    <!-- Modal de autenticación -->
+    <div id="authModal" class="modal">
+        <div class="modal-content glass-panel" style="max-width: 400px;">
+            <h2 style="color: var(--light-green); margin-bottom: 20px; text-align: center;">Acceso Restringido</h2>
+            <p style="color: var(--text-muted); margin-bottom: 20px; text-align: center;">Por favor, introduce la clave de acceso:</p>
+            <form id="authForm">
+                <div class="form-group">
+                    <input type="password" id="authPassword" placeholder="Clave de acceso" required autofocus style="width: 100%; padding: 12px; border: 1px solid rgba(255, 255, 255, 0.8); border-radius: 8px; background: rgba(10, 31, 10, 0.7); color: var(--text-light); font-size: 1rem;">
+                </div>
+                <div id="authError" style="color: #ff6b6b; margin-bottom: 15px; text-align: center; display: none;"></div>
+                <button type="submit" class="btn-primary" style="width: 100%;">
+                    Acceder
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <div class="container" id="mainContent" style="display: none;">
         <!-- Header -->
         <header class="glass-panel">
             <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; margin: 0; padding: 0;">
