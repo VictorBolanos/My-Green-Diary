@@ -1726,10 +1726,11 @@ class PlantManager {
                     Quitar Filtros
                 </button>
             </div>
-            <div class="dashboard-full-width-grid">
-                
-                <!-- Donut de distribución por tipo -->
-                <div class="dashboard-panel">
+            <div class="dashboard-rows-container">
+                <!-- Primera fila: 2 informes -->
+                <div class="dashboard-row dashboard-row-2">
+                    <!-- Donut de distribución por tipo -->
+                    <div class="dashboard-panel">
                     <h3 class="dashboard-panel-title">Distribución por tipo</h3>
                     <div class="dashboard-donut-wrapper">
                         ${typeDonutSvg}
@@ -1760,10 +1761,13 @@ class PlantManager {
                             <span>Mala salud: ${poorHealth}</span>
                         </div>
                     </div>
+                    </div>
                 </div>
                 
-                <!-- Estadísticas de Luz -->
-                <div class="dashboard-panel">
+                <!-- Segunda fila: 3 informes -->
+                <div class="dashboard-row dashboard-row-3">
+                    <!-- Estadísticas de Luz -->
+                    <div class="dashboard-panel">
                     <h3 class="dashboard-panel-title">Luz</h3>
                     <div class="dashboard-progress-section">
                         <div class="dashboard-progress-item">
@@ -1795,10 +1799,10 @@ class PlantManager {
                             </div>
                         </div>
                     </div>
-                </div>
-                
-                <!-- Estadísticas de Riego -->
-                <div class="dashboard-panel">
+                    </div>
+                    
+                    <!-- Estadísticas de Riego -->
+                    <div class="dashboard-panel">
                     <h3 class="dashboard-panel-title">Riego</h3>
                     <div class="dashboard-progress-section">
                         <div class="dashboard-progress-item">
@@ -1830,10 +1834,10 @@ class PlantManager {
                             </div>
                         </div>
                     </div>
-                </div>
-                
-                <!-- Estadísticas de Temperatura y Humedad -->
-                <div class="dashboard-panel">
+                    </div>
+                    
+                    <!-- Estadísticas de Temperatura y Humedad -->
+                    <div class="dashboard-panel">
                     <h3 class="dashboard-panel-title">Temperatura y Humedad</h3>
                     <div class="dashboard-progress-section">
                         <div class="dashboard-progress-item">
@@ -1865,12 +1869,21 @@ class PlantManager {
                             </div>
                         </div>
                     </div>
+                    </div>
                 </div>
             </div>
         `;
         
         // Añadir event listeners para filtrado interactivo
         setTimeout(() => {
+            // Botón de quitar filtros del dashboard
+            const clearDashboardFiltersBtn = document.getElementById('clearDashboardFiltersBtn');
+            if (clearDashboardFiltersBtn) {
+                clearDashboardFiltersBtn.addEventListener('click', () => {
+                    this.clearAllFilters();
+                });
+            }
+            
             // Filtrado por tipo desde la leyenda del donut
             document.querySelectorAll('.dashboard-compact-legend-item').forEach((item, index) => {
                 const panel = item.closest('.dashboard-panel');
