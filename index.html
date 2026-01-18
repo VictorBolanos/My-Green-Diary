@@ -5,13 +5,22 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>My Green Diary - Diario de Plantas</title>
     <link rel="stylesheet" href="styles.css">
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 </head>
 <body>
     <div class="container">
         <!-- Header -->
         <header class="glass-panel">
-            <h1>🌿 My Green Diary</h1>
-            <p class="subtitle">Tu diario personal de plantas</p>
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
+                <div>
+                    <h1>🌿 My Green Diary</h1>
+                    <p class="subtitle">Tu diario personal de plantas</p>
+                </div>
+            </div>
         </header>
 
         <!-- Botón para mostrar/ocultar formulario -->
@@ -23,25 +32,49 @@
         <section id="plantFormSection" class="glass-panel form-section hidden">
             <h2>Nueva Planta</h2>
             <form id="plantForm">
-                <div class="form-group">
-                    <label for="plantName">Nombre de la Planta *</label>
-                    <input type="text" id="plantName" required placeholder="Ej: Monstera Deliciosa">
+                <div class="form-row-grid">
+                    <div class="form-group">
+                        <label for="plantName">Nombre de la Planta *</label>
+                        <input type="text" id="plantName" required placeholder="Ej: Monstera Deliciosa">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="plantSpecies">Especie *</label>
+                        <input type="text" id="plantSpecies" required placeholder="Ej: Monstera deliciosa">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="plantVariety">Variación</label>
+                        <input type="text" id="plantVariety" placeholder="Ej: Variegata, Albo, etc.">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="plantAcquisitionDate">Fecha de Adquisición</label>
+                        <input type="date" id="plantAcquisitionDate">
+                    </div>
                 </div>
 
                 <div class="form-group">
-                    <label for="plantSpecies">Especie *</label>
-                    <input type="text" id="plantSpecies" required placeholder="Ej: Monstera deliciosa">
-                </div>
-
-                <div class="form-group">
-                    <label for="plantAge">Edad</label>
-                    <input type="text" id="plantAge" placeholder="Ej: 2 años, 6 meses">
-                </div>
-
-                <div class="form-group">
-                    <label for="plantPhoto">URL de la Foto</label>
-                    <input type="url" id="plantPhoto" placeholder="https://ejemplo.com/foto.jpg">
-                    <small>O deja vacío para usar una imagen por defecto</small>
+                    <label for="plantPhoto">Foto de la Planta</label>
+                    <div class="photo-options">
+                        <div class="photo-option-tabs">
+                            <button type="button" class="photo-tab active" data-tab="upload">📁 Subir Archivo</button>
+                            <button type="button" class="photo-tab" data-tab="url">🔗 Usar URL</button>
+                        </div>
+                        <div id="uploadTab" class="photo-tab-content active">
+                            <input type="file" id="plantPhotoFile" accept="image/*" class="file-input">
+                            <small>Selecciona una imagen desde tu computadora (JPG, PNG, etc.)</small>
+                            <div id="photoPreview" class="photo-preview hidden">
+                                <img id="previewImage" src="" alt="Vista previa">
+                                <button type="button" id="removePreview" class="btn-small btn-secondary">❌ Eliminar</button>
+                            </div>
+                        </div>
+                        <div id="urlTab" class="photo-tab-content hidden">
+                            <input type="url" id="plantPhoto" placeholder="https://ejemplo.com/foto.jpg">
+                            <small>O ingresa la URL de una imagen en internet</small>
+                        </div>
+                    </div>
+                    <small style="margin-top: 10px; display: block;">Si no seleccionas ninguna, se usará una imagen por defecto</small>
                 </div>
 
                 <div class="form-group">
@@ -73,9 +106,10 @@
                         <label for="plantHumidity">Humedad</label>
                         <select id="plantHumidity">
                             <option value="">Seleccionar...</option>
-                            <option value="Baja">Baja</option>
-                            <option value="Media">Media</option>
-                            <option value="Alta">Alta</option>
+                            <option value="BAJA (<40%)">BAJA (<40%)</option>
+                            <option value="MEDIA (40-60%)">MEDIA (40-60%)</option>
+                            <option value="ALTA (60-80%)">ALTA (60-80%)</option>
+                            <option value="MUY ALTA (>80%)">MUY ALTA (>80%)</option>
                         </select>
                     </div>
 
@@ -86,8 +120,25 @@
                 </div>
 
                 <div class="form-group">
-                    <label for="plantWateringFrequency">Frecuencia de Riego</label>
-                    <input type="text" id="plantWateringFrequency" placeholder="Ej: Cada 7-10 días">
+                    <label>Frecuencia de Riego por Estación</label>
+                    <div class="form-row-grid">
+                        <div class="form-group">
+                            <label for="plantWateringSpring">Primavera</label>
+                            <input type="text" id="plantWateringSpring" placeholder="Ej: Cada 5-7 días">
+                        </div>
+                        <div class="form-group">
+                            <label for="plantWateringSummer">Verano</label>
+                            <input type="text" id="plantWateringSummer" placeholder="Ej: Cada 3-5 días">
+                        </div>
+                        <div class="form-group">
+                            <label for="plantWateringAutumn">Otoño</label>
+                            <input type="text" id="plantWateringAutumn" placeholder="Ej: Cada 7-10 días">
+                        </div>
+                        <div class="form-group">
+                            <label for="plantWateringWinter">Invierno</label>
+                            <input type="text" id="plantWateringWinter" placeholder="Ej: Cada 10-14 días">
+                        </div>
+                    </div>
                 </div>
 
                 <div class="form-actions">
@@ -107,6 +158,46 @@
                 <button class="filter-btn" data-filter="needs-water">Necesitan Riego</button>
                 <button class="filter-btn" data-filter="recent">Recientes</button>
             </div>
+            <div class="advanced-filters">
+                <button id="toggleFiltersBtn" class="btn-secondary btn-small">🔽 Filtros Avanzados</button>
+                <div id="advancedFiltersPanel" class="advanced-filters-panel hidden">
+                    <div class="form-row-grid">
+                        <div class="form-group">
+                            <label for="filterSpecies">Filtrar por Especie</label>
+                            <input type="text" id="filterSpecies" placeholder="Ej: Monstera">
+                        </div>
+                        <div class="form-group">
+                            <label for="filterLight">Filtrar por Luz</label>
+                            <select id="filterLight">
+                                <option value="">Todas</option>
+                                <option value="Sombra">Sombra</option>
+                                <option value="Sombra Parcial">Sombra Parcial</option>
+                                <option value="Luz Indirecta">Luz Indirecta</option>
+                                <option value="Luz Directa">Luz Directa</option>
+                                <option value="Luz Intensa">Luz Intensa</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="filterHumidity">Filtrar por Humedad</label>
+                            <select id="filterHumidity">
+                                <option value="">Todas</option>
+                                <option value="BAJA (<40%)">BAJA (<40%)</option>
+                                <option value="MEDIA (40-60%)">MEDIA (40-60%)</option>
+                                <option value="ALTA (60-80%)">ALTA (60-80%)</option>
+                                <option value="MUY ALTA (>80%)">MUY ALTA (>80%)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="filterVariety">Filtrar por Variación</label>
+                            <input type="text" id="filterVariety" placeholder="Ej: Variegata">
+                        </div>
+                    </div>
+                    <div style="margin-top: 15px; display: flex; gap: 10px;">
+                        <button id="applyFiltersBtn" class="btn-primary btn-small">Aplicar Filtros</button>
+                        <button id="clearFiltersBtn" class="btn-secondary btn-small">Limpiar Filtros</button>
+                    </div>
+                </div>
+            </div>
         </section>
 
         <!-- Lista de plantas -->
@@ -125,6 +216,9 @@
         </div>
     </div>
 
+    <!-- Firebase Config (completa tus credenciales aquí) -->
+    <script src="firebase-config.js"></script>
+    
     <script src="script.js"></script>
 </body>
 </html>

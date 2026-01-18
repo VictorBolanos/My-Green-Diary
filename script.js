@@ -2,49 +2,241 @@
 
 class PlantManager {
     constructor() {
-        this.plants = this.loadPlants();
+        this.plants = [];
         this.currentEditingId = null;
-        this.init();
+        this.db = null;
+        this.useFirebase = false;
+        // Inicializar event listeners primero para que funcionen inmediatamente
+        this.setupEventListeners();
+        // Luego cargar datos (async)
+        this.initFirebase();
     }
 
-    init() {
-        this.setupEventListeners();
+    async initFirebase() {
+        // Verificar si Firebase está inicializado
+        if (typeof firebaseInitialized !== 'undefined' && firebaseInitialized && typeof firebase !== 'undefined') {
+            try {
+                this.db = firebase.firestore();
+                this.useFirebase = true;
+                console.log('✅ Firebase conectado correctamente');
+                await this.loadPlantsFromFirebase();
+            } catch (error) {
+                console.error('Error inicializando Firebase:', error);
+                this.plants = this.loadPlantsFromLocalStorage();
+                this.useFirebase = false;
+            }
+        } else {
+            console.log('ℹ️ Firebase no configurado, usando localStorage');
+            this.plants = this.loadPlantsFromLocalStorage();
+        }
+        // Renderizar plantas después de cargar los datos
         this.renderPlants();
     }
 
-    setupEventListeners() {
-        // Formulario
-        document.getElementById('plantForm').addEventListener('submit', (e) => this.handleFormSubmit(e));
-        document.getElementById('toggleFormBtn').addEventListener('click', () => this.toggleForm());
-        document.getElementById('cancelFormBtn').addEventListener('click', () => this.toggleForm());
-
-        // Búsqueda
-        document.getElementById('searchInput').addEventListener('input', (e) => this.filterPlants(e.target.value));
-
-        // Filtros
-        document.querySelectorAll('.filter-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-                e.target.classList.add('active');
-                this.applyFilter(e.target.dataset.filter);
-            });
-        });
-
-        // Modal
-        document.querySelector('.close-modal').addEventListener('click', () => this.closeModal());
-        document.getElementById('plantModal').addEventListener('click', (e) => {
-            if (e.target.id === 'plantModal') this.closeModal();
-        });
+    async loadPlantsFromFirebase() {
+        try {
+            const snapshot = await this.db.collection('plants').get();
+            this.plants = snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            }));
+            console.log(`📦 ${this.plants.length} plantas cargadas desde Firebase`);
+            
+            // Si hay plantas en localStorage pero no en Firebase, migrar
+            const localPlants = this.loadPlantsFromLocalStorage();
+            if (localPlants.length > 0 && this.plants.length === 0) {
+                const migrate = confirm(`¿Migrar ${localPlants.length} planta(s) de localStorage a Firebase?`);
+                if (migrate) {
+                    await this.migrateToFirebase(localPlants);
+                }
+            }
+        } catch (error) {
+            console.error('Error cargando desde Firebase:', error);
+            this.showNotification('Error conectando con Firebase. Usando datos locales.', 'error');
+            this.plants = this.loadPlantsFromLocalStorage();
+            this.useFirebase = false;
+        }
     }
 
-    // LocalStorage
-    loadPlants() {
+    async migrateToFirebase(localPlants) {
+        try {
+            const batch = this.db.batch();
+            localPlants.forEach(plant => {
+                const plantRef = this.db.collection('plants').doc(plant.id);
+                batch.set(plantRef, plant);
+            });
+            await batch.commit();
+            this.plants = localPlants;
+            this.showNotification(`${localPlants.length} planta(s) migrada(s) a Firebase`, 'success');
+            
+            // Opcional: limpiar localStorage después de migrar
+            // localStorage.removeItem('myGreenDiaryPlants');
+        } catch (error) {
+            console.error('Error en migración:', error);
+            this.showNotification('Error en migración. Los datos se mantienen en localStorage.', 'error');
+        }
+    }
+
+    loadPlantsFromLocalStorage() {
         const stored = localStorage.getItem('myGreenDiaryPlants');
         return stored ? JSON.parse(stored) : [];
     }
 
-    savePlants() {
+    setupEventListeners() {
+        try {
+            // Formulario
+            const plantForm = document.getElementById('plantForm');
+            if (plantForm) {
+                plantForm.addEventListener('submit', (e) => this.handleFormSubmit(e));
+            }
+
+            const toggleFormBtn = document.getElementById('toggleFormBtn');
+            if (toggleFormBtn) {
+                toggleFormBtn.addEventListener('click', () => this.toggleForm());
+            }
+
+            const cancelFormBtn = document.getElementById('cancelFormBtn');
+            if (cancelFormBtn) {
+                cancelFormBtn.addEventListener('click', () => this.toggleForm());
+            }
+
+            // Búsqueda
+            const searchInput = document.getElementById('searchInput');
+            if (searchInput) {
+                searchInput.addEventListener('input', (e) => this.filterPlants(e.target.value));
+            }
+
+            // Filtros
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+                    e.target.classList.add('active');
+                    this.applyFilter(e.target.dataset.filter);
+                });
+            });
+
+            // Modal
+            const closeModal = document.querySelector('.close-modal');
+            if (closeModal) {
+                closeModal.addEventListener('click', () => this.closeModal());
+            }
+
+            const plantModal = document.getElementById('plantModal');
+            if (plantModal) {
+                plantModal.addEventListener('click', (e) => {
+                    if (e.target.id === 'plantModal') this.closeModal();
+                });
+            }
+
+            // Photo tabs
+            document.querySelectorAll('.photo-tab').forEach(tab => {
+                tab.addEventListener('click', (e) => {
+                    const tabType = e.target.dataset.tab;
+                    if (tabType) this.switchPhotoTab(tabType);
+                });
+            });
+
+            // File upload preview
+            const plantPhotoFile = document.getElementById('plantPhotoFile');
+            if (plantPhotoFile) {
+                plantPhotoFile.addEventListener('change', (e) => {
+                    this.handleFileSelect(e.target.files[0]);
+                });
+            }
+
+            // Remove preview button
+            const removePreview = document.getElementById('removePreview');
+            if (removePreview) {
+                removePreview.addEventListener('click', () => {
+                    this.removePhotoPreview();
+                });
+            }
+
+            // Advanced filters
+            const toggleFiltersBtn = document.getElementById('toggleFiltersBtn');
+            if (toggleFiltersBtn) {
+                toggleFiltersBtn.addEventListener('click', () => {
+                    this.toggleAdvancedFilters();
+                });
+            }
+
+            const applyFiltersBtn = document.getElementById('applyFiltersBtn');
+            if (applyFiltersBtn) {
+                applyFiltersBtn.addEventListener('click', () => {
+                    this.applyAdvancedFilters();
+                });
+            }
+
+            const clearFiltersBtn = document.getElementById('clearFiltersBtn');
+            if (clearFiltersBtn) {
+                clearFiltersBtn.addEventListener('click', () => {
+                    this.clearAdvancedFilters();
+                });
+            }
+
+            console.log('✅ Event listeners configurados correctamente');
+        } catch (error) {
+            console.error('Error configurando event listeners:', error);
+        }
+    }
+
+    // Guardar una planta específica en Firebase
+    async savePlantToFirebase(plant) {
+        if (this.useFirebase && this.db) {
+            try {
+                await this.db.collection('plants').doc(plant.id).set(plant, { merge: true });
+                return true;
+            } catch (error) {
+                console.error('Error guardando planta en Firebase:', error);
+                return false;
+            }
+        }
+        return false;
+    }
+
+    // Guardar todas las plantas (sincronización completa)
+    async savePlants() {
+        if (this.useFirebase && this.db) {
+            try {
+                // Si hay muchas plantas, usar batch para eficiencia
+                if (this.plants.length > 10) {
+                    const batch = this.db.batch();
+                    this.plants.forEach(plant => {
+                        const plantRef = this.db.collection('plants').doc(plant.id);
+                        batch.set(plantRef, plant, { merge: true });
+                    });
+                    await batch.commit();
+                } else {
+                    // Guardar individualmente para mejor control de errores
+                    const promises = this.plants.map(plant => 
+                        this.db.collection('plants').doc(plant.id).set(plant, { merge: true })
+                    );
+                    await Promise.all(promises);
+                }
+            } catch (error) {
+                console.error('Error guardando en Firebase:', error);
+                this.showNotification('Error guardando en Firebase. Guardando localmente.', 'error');
+                this.saveToLocalStorage();
+            }
+        } else {
+            this.saveToLocalStorage();
+        }
+    }
+
+    saveToLocalStorage() {
         localStorage.setItem('myGreenDiaryPlants', JSON.stringify(this.plants));
+    }
+
+    // Eliminar planta de Firebase o localStorage
+    async deletePlantFromStorage(plantId) {
+        if (this.useFirebase && this.db) {
+            try {
+                await this.db.collection('plants').doc(plantId).delete();
+            } catch (error) {
+                console.error('Error eliminando de Firebase:', error);
+                this.saveToLocalStorage();
+            }
+        }
     }
 
     // Formulario
@@ -57,42 +249,135 @@ class PlantManager {
             btnText.textContent = '➖ Ocultar Formulario';
             this.currentEditingId = null;
             document.getElementById('plantForm').reset();
+            this.removePhotoPreview();
+            this.switchPhotoTab('upload');
         } else {
             formSection.classList.add('hidden');
             btnText.textContent = '➕ Agregar Nueva Planta';
         }
     }
 
-    handleFormSubmit(e) {
+    switchPhotoTab(tabType) {
+        document.querySelectorAll('.photo-tab').forEach(tab => {
+            tab.classList.remove('active');
+        });
+        document.querySelectorAll('.photo-tab-content').forEach(content => {
+            content.classList.remove('active');
+            content.classList.add('hidden');
+        });
+
+        const activeTab = document.querySelector(`[data-tab="${tabType}"]`);
+        const activeContent = document.getElementById(`${tabType}Tab`);
+
+        if (activeTab) activeTab.classList.add('active');
+        if (activeContent) {
+            activeContent.classList.add('active');
+            activeContent.classList.remove('hidden');
+        }
+
+        // Si cambiamos a URL tab, mantener la preview si existe una imagen base64
+        // Si cambiamos de URL a upload, no hacer nada (la preview se manejará con el file input)
+    }
+
+    handleFileSelect(file) {
+        if (!file || !file.type.startsWith('image/')) {
+            this.showNotification('Por favor, selecciona un archivo de imagen válido', 'error');
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const imageDataUrl = e.target.result;
+            const previewDiv = document.getElementById('photoPreview');
+            const previewImg = document.getElementById('previewImage');
+            
+            previewImg.src = imageDataUrl;
+            previewDiv.classList.remove('hidden');
+        };
+        reader.readAsDataURL(file);
+    }
+
+    removePhotoPreview() {
+        const previewDiv = document.getElementById('photoPreview');
+        const previewImg = document.getElementById('previewImage');
+        const fileInput = document.getElementById('plantPhotoFile');
+        
+        previewDiv.classList.add('hidden');
+        previewImg.src = '';
+        if (fileInput) fileInput.value = '';
+    }
+
+    getPhotoData() {
+        const previewDiv = document.getElementById('photoPreview');
+        const previewImg = document.getElementById('previewImage');
+        const urlInput = document.getElementById('plantPhoto');
+        
+        // Si hay una imagen cargada desde archivo
+        if (!previewDiv.classList.contains('hidden') && previewImg.src) {
+            // Verificar si es base64 o data URL
+            if (previewImg.src.startsWith('data:image')) {
+                return previewImg.src; // Devolver base64
+            }
+        }
+        
+        // Si hay URL ingresada
+        const urlTab = document.getElementById('urlTab');
+        if (!urlTab.classList.contains('hidden') && urlInput.value.trim()) {
+            return urlInput.value.trim();
+        }
+        
+        // Si no hay nada, retornar null para usar imagen por defecto
+        return null;
+    }
+
+    async handleFormSubmit(e) {
         e.preventDefault();
+        
+        const photoData = this.getPhotoData();
+        const existingPlant = this.currentEditingId ? this.plants.find(p => p.id === this.currentEditingId) : null;
         
         const formData = {
             id: this.currentEditingId || Date.now().toString(),
             name: document.getElementById('plantName').value.trim(),
             species: document.getElementById('plantSpecies').value.trim(),
-            age: document.getElementById('plantAge').value.trim(),
-            photo: document.getElementById('plantPhoto').value.trim() || 'https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=400',
+            variety: document.getElementById('plantVariety').value.trim(),
+            acquisitionDate: document.getElementById('plantAcquisitionDate').value || null,
+            photo: photoData || (existingPlant?.photo) || 'https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=400',
             description: document.getElementById('plantDescription').value.trim(),
             light: document.getElementById('plantLight').value,
             temperature: document.getElementById('plantTemperature').value.trim(),
             humidity: document.getElementById('plantHumidity').value,
             substrate: document.getElementById('plantSubstrate').value.trim(),
-            wateringFrequency: document.getElementById('plantWateringFrequency').value.trim(),
-            lastWatered: this.currentEditingId ? this.plants.find(p => p.id === this.currentEditingId)?.lastWatered || null : null,
-            comments: this.currentEditingId ? this.plants.find(p => p.id === this.currentEditingId)?.comments || [] : [],
-            createdAt: this.currentEditingId ? this.plants.find(p => p.id === this.currentEditingId)?.createdAt || new Date().toISOString() : new Date().toISOString()
+            wateringSpring: document.getElementById('plantWateringSpring').value.trim(),
+            wateringSummer: document.getElementById('plantWateringSummer').value.trim(),
+            wateringAutumn: document.getElementById('plantWateringAutumn').value.trim(),
+            wateringWinter: document.getElementById('plantWateringWinter').value.trim(),
+            lastWatered: existingPlant?.lastWatered || null,
+            comments: existingPlant?.comments || [],
+            createdAt: existingPlant?.createdAt || new Date().toISOString()
         };
 
         if (this.currentEditingId) {
+            // Editar planta existente
             const index = this.plants.findIndex(p => p.id === this.currentEditingId);
             if (index !== -1) {
                 this.plants[index] = formData;
             }
+            // Guardar individualmente en Firebase
+            const saved = await this.savePlantToFirebase(formData);
+            if (!saved) {
+                await this.savePlants(); // Fallback: guardar todas
+            }
         } else {
+            // Nueva planta
             this.plants.push(formData);
+            // Guardar individualmente en Firebase
+            const saved = await this.savePlantToFirebase(formData);
+            if (!saved) {
+                await this.savePlants(); // Fallback: guardar todas
+            }
         }
 
-        this.savePlants();
         this.renderPlants();
         this.toggleForm();
         this.showNotification(this.currentEditingId ? 'Planta actualizada' : 'Planta agregada', 'success');
@@ -131,9 +416,9 @@ class PlantManager {
             // Botón de riego
             const waterBtn = document.querySelector(`[data-water-id="${plant.id}"]`);
             if (waterBtn) {
-                waterBtn.addEventListener('click', (e) => {
+                waterBtn.addEventListener('click', async (e) => {
                     e.stopPropagation();
-                    this.updateWatering(plant.id);
+                    await this.updateWatering(plant.id);
                 });
             }
 
@@ -173,16 +458,16 @@ class PlantManager {
                 <div class="plant-card-header">
                     <div>
                         <h3 class="plant-card-title">${this.escapeHtml(plant.name)}</h3>
-                        <p class="plant-card-species">${this.escapeHtml(plant.species)}</p>
+                        <p class="plant-card-species">${this.escapeHtml(plant.species)}${plant.variety ? ' - ' + this.escapeHtml(plant.variety) : ''}</p>
                     </div>
                 </div>
                 <img src="${plant.photo}" alt="${this.escapeHtml(plant.name)}" class="plant-card-image" 
                      onerror="this.src='https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=400'">
                 <div class="plant-card-info">
-                    ${plant.age ? `
+                    ${plant.acquisitionDate ? `
                         <div class="info-item">
-                            <span class="info-label">Edad:</span>
-                            <span class="info-value">${this.escapeHtml(plant.age)}</span>
+                            <span class="info-label">Adquirida:</span>
+                            <span class="info-value">${this.formatAcquisitionDate(plant.acquisitionDate)}</span>
                         </div>
                     ` : ''}
                     ${plant.light ? `
@@ -213,11 +498,15 @@ class PlantManager {
     }
 
     // Funcionalidades
-    updateWatering(plantId) {
+    async updateWatering(plantId) {
         const plant = this.plants.find(p => p.id === plantId);
         if (plant) {
             plant.lastWatered = new Date().toISOString();
-            this.savePlants();
+            // Guardar individualmente en Firebase
+            const saved = await this.savePlantToFirebase(plant);
+            if (!saved) {
+                await this.savePlants(); // Fallback
+            }
             this.renderPlants();
             this.showNotification('Riego registrado correctamente', 'success');
         }
@@ -227,14 +516,40 @@ class PlantManager {
         this.currentEditingId = plant.id;
         document.getElementById('plantName').value = plant.name;
         document.getElementById('plantSpecies').value = plant.species;
-        document.getElementById('plantAge').value = plant.age || '';
-        document.getElementById('plantPhoto').value = plant.photo || '';
+        document.getElementById('plantVariety').value = plant.variety || '';
+        document.getElementById('plantAcquisitionDate').value = plant.acquisitionDate || '';
         document.getElementById('plantDescription').value = plant.description || '';
         document.getElementById('plantLight').value = plant.light || '';
         document.getElementById('plantTemperature').value = plant.temperature || '';
         document.getElementById('plantHumidity').value = plant.humidity || '';
         document.getElementById('plantSubstrate').value = plant.substrate || '';
-        document.getElementById('plantWateringFrequency').value = plant.wateringFrequency || '';
+        document.getElementById('plantWateringSpring').value = plant.wateringSpring || '';
+        document.getElementById('plantWateringSummer').value = plant.wateringSummer || '';
+        document.getElementById('plantWateringAutumn').value = plant.wateringAutumn || '';
+        document.getElementById('plantWateringWinter').value = plant.wateringWinter || '';
+        
+        // Manejar la foto según el tipo (base64 o URL)
+        if (plant.photo) {
+            if (plant.photo.startsWith('data:image')) {
+                // Es base64 - mostrar en tab de upload con preview
+                this.switchPhotoTab('upload');
+                const previewDiv = document.getElementById('photoPreview');
+                const previewImg = document.getElementById('previewImage');
+                previewImg.src = plant.photo;
+                previewDiv.classList.remove('hidden');
+                document.getElementById('plantPhotoFile').value = ''; // Limpiar file input
+            } else {
+                // Es URL - mostrar en tab de URL
+                this.switchPhotoTab('url');
+                document.getElementById('plantPhoto').value = plant.photo;
+                this.removePhotoPreview();
+            }
+        } else {
+            // No hay foto - dejar en tab de upload limpio
+            this.switchPhotoTab('upload');
+            this.removePhotoPreview();
+            document.getElementById('plantPhoto').value = '';
+        }
         
         const formSection = document.getElementById('plantFormSection');
         if (formSection.classList.contains('hidden')) {
@@ -244,10 +559,11 @@ class PlantManager {
         formSection.scrollIntoView({ behavior: 'smooth' });
     }
 
-    deletePlant(plantId) {
+    async deletePlant(plantId) {
         if (confirm('¿Estás seguro de que quieres eliminar esta planta?')) {
             this.plants = this.plants.filter(p => p.id !== plantId);
-            this.savePlants();
+            await this.deletePlantFromStorage(plantId);
+            await this.savePlants();
             this.renderPlants();
             this.showNotification('Planta eliminada', 'success');
         }
@@ -258,12 +574,37 @@ class PlantManager {
         const modalBody = document.getElementById('modalBody');
         
         const commentsHtml = plant.comments && plant.comments.length > 0
-            ? plant.comments.map(comment => `
-                <div class="comment">
-                    <div class="comment-date">${this.formatDate(comment.date)}</div>
-                    <div class="comment-text">${this.escapeHtml(comment.text)}</div>
+            ? plant.comments.map((comment, index) => {
+                const commentId = comment.id || `${plant.id}-comment-${index}`;
+                if (!comment.id) comment.id = commentId;
+                const editedBadge = comment.editedAt ? '<span style="color: var(--text-muted); font-size: 0.75rem; margin-left: 8px;">(editado)</span>' : '';
+                return `
+                <div class="comment" data-comment-id="${commentId}">
+                    <div class="comment-header">
+                        <div class="comment-date">
+                            📅 ${this.formatCommentDate(comment.date)}
+                            ${editedBadge}
+                        </div>
+                        <div class="comment-actions">
+                            <button class="comment-btn edit-comment-btn" onclick="plantManager.editComment('${plant.id}', '${commentId}')" title="Editar">
+                                ✏️
+                            </button>
+                            <button class="comment-btn delete-comment-btn" onclick="plantManager.deleteComment('${plant.id}', '${commentId}')" title="Eliminar">
+                                🗑️
+                            </button>
+                        </div>
+                    </div>
+                    <div class="comment-text" id="comment-text-${commentId}">${this.escapeHtml(comment.text)}</div>
+                    <div class="comment-edit-form hidden" id="comment-edit-${commentId}">
+                        <textarea class="comment-edit-textarea" id="comment-edit-text-${commentId}">${this.escapeHtml(comment.text)}</textarea>
+                        <div class="comment-edit-actions">
+                            <button class="btn-primary btn-small" onclick="plantManager.saveComment('${plant.id}', '${commentId}')">Guardar</button>
+                            <button class="btn-secondary btn-small" onclick="plantManager.cancelEditComment('${commentId}')">Cancelar</button>
+                        </div>
+                    </div>
                 </div>
-            `).join('')
+            `;
+            }).join('')
             : '<p style="color: var(--text-muted);">No hay comentarios aún.</p>';
 
         modalBody.innerHTML = `
@@ -276,7 +617,7 @@ class PlantManager {
                         ${this.escapeHtml(plant.name)}
                     </h2>
                     <p style="color: var(--text-muted); font-style: italic; margin-bottom: 20px;">
-                        ${this.escapeHtml(plant.species)}
+                        ${this.escapeHtml(plant.species)}${plant.variety ? ' - ' + this.escapeHtml(plant.variety) : ''}
                     </p>
                 </div>
 
@@ -289,10 +630,18 @@ class PlantManager {
 
                 <div class="modal-section">
                     <h3>Información de Cuidados</h3>
-                    <div class="info-item">
-                        <span class="info-label">Edad:</span>
-                        <span class="info-value">${plant.age || 'No especificada'}</span>
-                    </div>
+                    ${plant.variety ? `
+                        <div class="info-item">
+                            <span class="info-label">Variación:</span>
+                            <span class="info-value">${this.escapeHtml(plant.variety)}</span>
+                        </div>
+                    ` : ''}
+                    ${plant.acquisitionDate ? `
+                        <div class="info-item">
+                            <span class="info-label">Fecha de Adquisición:</span>
+                            <span class="info-value">${this.formatAcquisitionDate(plant.acquisitionDate)}</span>
+                        </div>
+                    ` : ''}
                     ${plant.light ? `
                         <div class="info-item">
                             <span class="info-label">Luz Requerida:</span>
@@ -317,10 +666,33 @@ class PlantManager {
                             <span class="info-value">${this.escapeHtml(plant.substrate)}</span>
                         </div>
                     ` : ''}
-                    ${plant.wateringFrequency ? `
-                        <div class="info-item">
-                            <span class="info-label">Frecuencia de Riego:</span>
-                            <span class="info-value">${this.escapeHtml(plant.wateringFrequency)}</span>
+                    ${(plant.wateringSpring || plant.wateringSummer || plant.wateringAutumn || plant.wateringWinter) ? `
+                        <div style="margin-top: 15px;">
+                            <strong style="color: var(--light-green); display: block; margin-bottom: 10px;">Frecuencia de Riego por Estación:</strong>
+                            ${plant.wateringSpring ? `
+                                <div class="info-item">
+                                    <span class="info-label">🌱 Primavera:</span>
+                                    <span class="info-value">${this.escapeHtml(plant.wateringSpring)}</span>
+                                </div>
+                            ` : ''}
+                            ${plant.wateringSummer ? `
+                                <div class="info-item">
+                                    <span class="info-label">☀️ Verano:</span>
+                                    <span class="info-value">${this.escapeHtml(plant.wateringSummer)}</span>
+                                </div>
+                            ` : ''}
+                            ${plant.wateringAutumn ? `
+                                <div class="info-item">
+                                    <span class="info-label">🍂 Otoño:</span>
+                                    <span class="info-value">${this.escapeHtml(plant.wateringAutumn)}</span>
+                                </div>
+                            ` : ''}
+                            ${plant.wateringWinter ? `
+                                <div class="info-item">
+                                    <span class="info-label">❄️ Invierno:</span>
+                                    <span class="info-value">${this.escapeHtml(plant.wateringWinter)}</span>
+                                </div>
+                            ` : ''}
                         </div>
                     ` : ''}
                     <div class="info-item">
@@ -343,7 +715,7 @@ class PlantManager {
                 </div>
 
                 <div style="margin-top: 25px; display: flex; gap: 10px;">
-                    <button class="btn-primary" onclick="plantManager.updateWatering('${plant.id}'); plantManager.closeModal();">
+                    <button class="btn-primary" onclick="(async () => { await plantManager.updateWatering('${plant.id}'); plantManager.closeModal(); })();">
                         💧 Registrar Riego
                     </button>
                     <button class="btn-secondary" onclick="plantManager.editPlant(plantManager.plants.find(p => p.id === '${plant.id}')); plantManager.closeModal();">
@@ -356,7 +728,7 @@ class PlantManager {
         modal.classList.remove('hidden');
     }
 
-    addComment(plantId) {
+    async addComment(plantId) {
         const commentText = document.getElementById('newComment').value.trim();
         if (!commentText) {
             this.showNotification('Por favor, escribe un comentario', 'error');
@@ -369,13 +741,105 @@ class PlantManager {
                 plant.comments = [];
             }
             plant.comments.push({
+                id: `${plantId}-comment-${Date.now()}`,
                 date: new Date().toISOString(),
                 text: commentText
             });
-            this.savePlants();
+            await this.savePlants();
             this.showPlantDetails(plant);
+            document.getElementById('newComment').value = '';
             this.showNotification('Comentario agregado', 'success');
         }
+    }
+
+    editComment(plantId, commentId) {
+        const commentTextDiv = document.getElementById(`comment-text-${commentId}`);
+        const commentEditForm = document.getElementById(`comment-edit-${commentId}`);
+        
+        if (commentTextDiv && commentEditForm) {
+            commentTextDiv.style.display = 'none';
+            commentEditForm.classList.remove('hidden');
+        }
+    }
+
+    async saveComment(plantId, commentId) {
+        const plant = this.plants.find(p => p.id === plantId);
+        if (!plant || !plant.comments) return;
+
+        const editTextarea = document.getElementById(`comment-edit-text-${commentId}`);
+        const newText = editTextarea.value.trim();
+        
+        if (!newText) {
+            this.showNotification('El comentario no puede estar vacío', 'error');
+            return;
+        }
+
+        const comment = plant.comments.find(c => c.id === commentId);
+        if (comment) {
+            comment.text = newText;
+            comment.editedAt = new Date().toISOString();
+            // Guardar individualmente en Firebase
+            const saved = await this.savePlantToFirebase(plant);
+            if (!saved) {
+                await this.savePlants(); // Fallback
+            }
+            this.showPlantDetails(plant);
+            this.showNotification('Comentario actualizado', 'success');
+        }
+    }
+
+    cancelEditComment(commentId) {
+        const commentTextDiv = document.getElementById(`comment-text-${commentId}`);
+        const commentEditForm = document.getElementById(`comment-edit-${commentId}`);
+        
+        if (commentTextDiv && commentEditForm) {
+            commentTextDiv.style.display = 'block';
+            commentEditForm.classList.add('hidden');
+        }
+    }
+
+    async deleteComment(plantId, commentId) {
+        if (!confirm('¿Estás seguro de que quieres eliminar este comentario?')) {
+            return;
+        }
+
+        const plant = this.plants.find(p => p.id === plantId);
+        if (plant && plant.comments) {
+            plant.comments = plant.comments.filter(c => c.id !== commentId);
+            // Guardar individualmente en Firebase
+            const saved = await this.savePlantToFirebase(plant);
+            if (!saved) {
+                await this.savePlants(); // Fallback
+            }
+            this.showPlantDetails(plant);
+            this.showNotification('Comentario eliminado', 'success');
+        }
+    }
+
+    formatCommentDate(dateString) {
+        const date = new Date(dateString);
+        const now = new Date();
+        const diffTime = Math.abs(now - date);
+        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+        const timeString = date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+        const fullDate = date.toLocaleDateString('es-ES', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+        });
+
+        if (diffDays === 0) {
+            return `Hoy a las ${timeString}`;
+        }
+        if (diffDays === 1) {
+            return `Ayer a las ${timeString}`;
+        }
+        if (diffDays < 7) {
+            return `${fullDate} a las ${timeString}`;
+        }
+        
+        return `${fullDate} a las ${timeString}`;
     }
 
     closeModal() {
@@ -416,6 +880,72 @@ class PlantManager {
         this.renderPlants(filtered);
     }
 
+    toggleAdvancedFilters() {
+        const panel = document.getElementById('advancedFiltersPanel');
+        const btn = document.getElementById('toggleFiltersBtn');
+        
+        if (panel.classList.contains('hidden')) {
+            panel.classList.remove('hidden');
+            btn.textContent = '🔼 Ocultar Filtros';
+        } else {
+            panel.classList.add('hidden');
+            btn.textContent = '🔽 Filtros Avanzados';
+        }
+    }
+
+    applyAdvancedFilters() {
+        const speciesFilter = document.getElementById('filterSpecies').value.trim().toLowerCase();
+        const lightFilter = document.getElementById('filterLight').value;
+        const humidityFilter = document.getElementById('filterHumidity').value;
+        const varietyFilter = document.getElementById('filterVariety').value.trim().toLowerCase();
+        const searchTerm = document.getElementById('searchInput').value.trim().toLowerCase();
+
+        let filtered = this.plants.filter(plant => {
+            // Búsqueda de texto
+            if (searchTerm) {
+                const matchesSearch = plant.name.toLowerCase().includes(searchTerm) ||
+                                    plant.species.toLowerCase().includes(searchTerm) ||
+                                    (plant.description && plant.description.toLowerCase().includes(searchTerm));
+                if (!matchesSearch) return false;
+            }
+
+            // Filtro por especie
+            if (speciesFilter && !plant.species.toLowerCase().includes(speciesFilter)) {
+                return false;
+            }
+
+            // Filtro por luz
+            if (lightFilter && plant.light !== lightFilter) {
+                return false;
+            }
+
+            // Filtro por humedad
+            if (humidityFilter && plant.humidity !== humidityFilter) {
+                return false;
+            }
+
+            // Filtro por variación
+            if (varietyFilter && (!plant.variety || !plant.variety.toLowerCase().includes(varietyFilter))) {
+                return false;
+            }
+
+            return true;
+        });
+
+        this.renderPlants(filtered);
+        this.showNotification(`${filtered.length} planta(s) encontrada(s)`, 'success');
+    }
+
+    clearAdvancedFilters() {
+        document.getElementById('filterSpecies').value = '';
+        document.getElementById('filterLight').value = '';
+        document.getElementById('filterHumidity').value = '';
+        document.getElementById('filterVariety').value = '';
+        document.getElementById('searchInput').value = '';
+        this.renderPlants();
+        this.showNotification('Filtros limpiados', 'success');
+    }
+
     // Utilidades
     formatDate(dateString) {
         const date = new Date(dateString);
@@ -427,6 +957,15 @@ class PlantManager {
         if (diffDays === 1) return 'Ayer';
         if (diffDays < 7) return `Hace ${diffDays} días`;
         
+        return date.toLocaleDateString('es-ES', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+        });
+    }
+
+    formatAcquisitionDate(dateString) {
+        const date = new Date(dateString);
         return date.toLocaleDateString('es-ES', {
             year: 'numeric',
             month: 'long',
@@ -474,8 +1013,19 @@ class PlantManager {
 
 // Inicializar la aplicación
 let plantManager;
+
+// Esperar a que el DOM esté listo Y que Firebase esté cargado
 document.addEventListener('DOMContentLoaded', () => {
-    plantManager = new PlantManager();
+    // Pequeño delay para asegurar que Firebase esté cargado
+    setTimeout(() => {
+        try {
+            plantManager = new PlantManager();
+        } catch (error) {
+            console.error('Error inicializando PlantManager:', error);
+            // Crear instancia sin Firebase si hay error
+            plantManager = new PlantManager();
+        }
+    }, 100);
 });
 
 // Agregar estilos de animación para notificaciones
