@@ -479,17 +479,26 @@ class PlantManager {
             // Cerrar formulario al hacer clic fuera (pero NO cerrar el modal de detalles)
             const plantFormModal = document.getElementById('plantFormModal');
             if (plantFormModal) {
-                plantFormModal.addEventListener('click', (e) => {
-                    // Solo cerrar si se hace clic en el fondo del formulario (no en el contenido)
-                    if (e.target.id === 'plantFormModal') {
+                let mouseDownOnBackground = false;
+                
+                plantFormModal.addEventListener('mousedown', (e) => {
+                    // Marcar si el mousedown ocurrió en el fondo
+                    mouseDownOnBackground = (e.target.id === 'plantFormModal');
+                });
+                
+                plantFormModal.addEventListener('mouseup', (e) => {
+                    // Solo cerrar si tanto mousedown como mouseup ocurrieron en el fondo
+                    if (mouseDownOnBackground && e.target.id === 'plantFormModal') {
                         // Verificar cambios antes de cerrar
                         if (this.hasFormChanges()) {
                             if (!confirm('¿Estás seguro de que quieres salir? Tienes cambios sin guardar que se perderán.')) {
+                                mouseDownOnBackground = false;
                                 return; // No cerrar si el usuario cancela
                             }
                         }
                         this.closePlantFormModal();
                     }
+                    mouseDownOnBackground = false;
                 });
             }
 
@@ -524,14 +533,22 @@ class PlantManager {
                 }
                 
                 // Listener para cerrar al hacer clic fuera (en el fondo)
-                plantModal.addEventListener('click', (e) => {
-                    // Solo cerrar si se hace clic en el fondo Y el formulario no está abierto
-                    if (e.target.id === 'plantModal') {
+                let mouseDownOnBackground = false;
+                
+                plantModal.addEventListener('mousedown', (e) => {
+                    // Marcar si el mousedown ocurrió en el fondo
+                    mouseDownOnBackground = (e.target.id === 'plantModal');
+                });
+                
+                plantModal.addEventListener('mouseup', (e) => {
+                    // Solo cerrar si tanto mousedown como mouseup ocurrieron en el fondo
+                    if (mouseDownOnBackground && e.target.id === 'plantModal') {
                         const formModal = document.getElementById('plantFormModal');
                         if (!formModal || formModal.classList.contains('hidden')) {
                             this.closeModal();
                         }
                     }
+                    mouseDownOnBackground = false;
                 });
                 
                 // Observer para detectar cuando el modal se oculta y cerrar la leyenda
@@ -609,10 +626,15 @@ class PlantManager {
 
             const bgModal = document.getElementById('bgModal');
             if (bgModal) {
-                bgModal.addEventListener('click', (e) => {
-                    if (e.target.id === 'bgModal' || e.target.classList.contains('close-bg-modal')) {
+                let mouseDownOnBackground = false;
+                bgModal.addEventListener('mousedown', (e) => {
+                    mouseDownOnBackground = (e.target.id === 'bgModal' || e.target.classList.contains('close-bg-modal'));
+                });
+                bgModal.addEventListener('mouseup', (e) => {
+                    if (mouseDownOnBackground && (e.target.id === 'bgModal' || e.target.classList.contains('close-bg-modal'))) {
                         this.closeBgModal();
                     }
+                    mouseDownOnBackground = false;
                 });
             }
 
@@ -1450,7 +1472,7 @@ class PlantManager {
                     <div class="modal-content glass-panel watering-calendar-modal-content" style="max-height: 90vh; overflow-y: auto;">
                         <span class="close-modal" onclick="document.getElementById('wateringCalendarModal').classList.add('hidden')">&times;</span>
                         <h2 style="color: var(--light-green); margin-bottom: 20px;">
-                            <img src="img/icons/water-drop.svg" alt="Calendario" class="label-icon" style="width: 24px; height: 24px;"> Calendario de Riegos
+                            <img src="img/icons/water-drop.svg" alt="Calendario" class="label-icon" style="width: 24px; height: 24px;"> Calendario de riego
                         </h2>
                         <div id="wateringCalendarModalBody"></div>
                     </div>
@@ -1471,10 +1493,15 @@ class PlantManager {
         newModal.classList.remove('hidden');
         
         // Cerrar al hacer clic fuera
-        newModal.addEventListener('click', (e) => {
-            if (e.target.id === 'wateringCalendarModal') {
+        let mouseDownOnBackground = false;
+        newModal.addEventListener('mousedown', (e) => {
+            mouseDownOnBackground = (e.target.id === 'wateringCalendarModal');
+        });
+        newModal.addEventListener('mouseup', (e) => {
+            if (mouseDownOnBackground && e.target.id === 'wateringCalendarModal') {
                 newModal.classList.add('hidden');
             }
+            mouseDownOnBackground = false;
         });
     }
 
@@ -1511,10 +1538,15 @@ class PlantManager {
             lightbox = document.getElementById('photoLightboxModal');
             
             // Cerrar al hacer clic fuera o con ESC
-            lightbox.addEventListener('click', (e) => {
-                if (e.target.id === 'photoLightboxModal' || e.target.classList.contains('lightbox-image')) {
+            let mouseDownOnBackground = false;
+            lightbox.addEventListener('mousedown', (e) => {
+                mouseDownOnBackground = (e.target.id === 'photoLightboxModal' || e.target.classList.contains('lightbox-image'));
+            });
+            lightbox.addEventListener('mouseup', (e) => {
+                if (mouseDownOnBackground && (e.target.id === 'photoLightboxModal' || e.target.classList.contains('lightbox-image'))) {
                     lightbox.classList.add('hidden');
                 }
+                mouseDownOnBackground = false;
             });
             
             document.addEventListener('keydown', (e) => {
@@ -1628,10 +1660,10 @@ class PlantManager {
                         </div>
                         <div class="comment-actions">
                             <button class="comment-btn edit-comment-btn" onclick="plantManager.editComment('${plant.id}', '${commentId}')" title="Editar">
-                                Editar
+                                <img src="img/icons/edit.svg" alt="Editar" class="comment-btn-icon">
                             </button>
                             <button class="comment-btn delete-comment-btn" onclick="plantManager.deleteComment('${plant.id}', '${commentId}')" title="Eliminar">
-                                Eliminar
+                                <img src="img/icons/delete.svg" alt="Eliminar" class="comment-btn-icon">
                             </button>
                         </div>
                     </div>
@@ -1821,16 +1853,23 @@ class PlantManager {
                         ${commentsHtml}
                     </div>
                     <div class="comment-form">
-                        <textarea id="newComment" rows="3" placeholder="Agregar un comentario sobre esta planta..."></textarea>
+                        <div id="newCommentContainer" class="hidden">
+                            <textarea id="newComment" rows="3" placeholder="Agregar un comentario sobre esta planta..." style="margin-bottom: 0;"></textarea>
+                            <div style="display: flex; justify-content: flex-end; margin-top: 0;">
+                                <button class="btn-save-comment" onclick="plantManager.addComment('${plant.id}')" title="Guardar Comentario">
+                                    <img src="img/icons/save.svg" alt="Guardar" class="btn-save-comment-icon"> Guardar
+                                </button>
+                            </div>
+                        </div>
                         <div class="plant-card-actions" style="margin-top: 10px;">
-                            <button class="btn-action" onclick="plantManager.addComment('${plant.id}')" title="Agregar Comentario">
-                                <img src="img/icons/comment.svg" alt="Comentario" class="btn-action-icon"> Agregar Comentario
-                            </button>
                             ${wateringDates.length > 0 ? `
-                                <button class="btn-action btn-water-action" onclick="plantManager.showWateringCalendarModal('${plant.id}')" title="Ver Calendario de Riegos">
-                                    <img src="img/icons/water-drop.svg" alt="Calendario" class="btn-action-icon"> Ver Calendario de Riegos
+                                <button class="btn-action btn-water-action" onclick="plantManager.showWateringCalendarModal('${plant.id}')" title="Calendario de riego">
+                                    <img src="img/icons/water-drop.svg" alt="Calendario" class="btn-action-icon"> Calendario de riego
                                 </button>
                             ` : ''}
+                            <button class="btn-action" onclick="plantManager.showCommentForm('${plant.id}')" title="Agregar Comentario">
+                                <img src="img/icons/comment.svg" alt="Comentario" class="btn-action-icon"> Agregar Comentario
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -2039,6 +2078,17 @@ class PlantManager {
         }
     }
 
+    showCommentForm(plantId) {
+        const container = document.getElementById('newCommentContainer');
+        if (container) {
+            container.classList.remove('hidden');
+            const textarea = document.getElementById('newComment');
+            if (textarea) {
+                textarea.focus();
+            }
+        }
+    }
+
     async addComment(plantId) {
         const commentText = document.getElementById('newComment').value.trim();
         if (!commentText) {
@@ -2059,6 +2109,10 @@ class PlantManager {
             await this.savePlants();
             this.showPlantDetails(plant);
             document.getElementById('newComment').value = '';
+            const container = document.getElementById('newCommentContainer');
+            if (container) {
+                container.classList.add('hidden');
+            }
             this.showNotification('Comentario agregado', 'success');
         }
     }

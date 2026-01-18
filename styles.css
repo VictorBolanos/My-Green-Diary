@@ -16,6 +16,8 @@
     --glass-bg: rgba(26, 58, 26, 0.3);
     --glass-border: rgba(74, 154, 74, 0.2);
     --shadow: rgba(0, 0, 0, 0.3);
+    --water-blue: rgb(135, 206, 250);
+    --water-blue-opacity: rgba(135, 206, 250, 0.8);
 }
 
 body {
@@ -583,16 +585,16 @@ small {
 }
 
 .btn-water-action {
-    border-color: rgba(59, 130, 246, 0.8);
+    border-color: var(--water-blue-opacity);
 }
 
 .btn-water-action .btn-action-icon {
-    filter: brightness(0) saturate(100%) invert(47%) sepia(96%) saturate(1749%) hue-rotate(195deg) brightness(101%) contrast(101%);
+    filter: brightness(0) saturate(100%) invert(53%) sepia(98%) saturate(1352%) hue-rotate(180deg) brightness(1.15) contrast(0.95);
 }
 
 .btn-water-action:hover {
-    border-color: rgba(59, 130, 246, 1);
-    background: rgba(59, 130, 246, 0.2);
+    border-color: rgba(135, 206, 250, 1);
+    background: rgba(135, 206, 250, 0.2);
     transform: translateY(-2px);
 }
 
@@ -827,10 +829,21 @@ small {
     border-radius: 6px;
     color: var(--text-light);
     cursor: pointer;
-    padding: 4px 8px;
+    padding: 6px;
     font-size: 0.9rem;
     transition: all 0.3s ease;
     opacity: 0.7;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+}
+
+.comment-btn-icon {
+    width: 18px;
+    height: 18px;
+    filter: brightness(0) invert(1);
 }
 
 .comment-btn:hover {
@@ -847,7 +860,14 @@ small {
 .delete-comment-btn:hover {
     border-color: #ff6b6b;
     background: rgba(255, 107, 107, 0.2);
-    color: #ff6b6b;
+}
+
+.delete-comment-btn:hover .comment-btn-icon {
+    filter: brightness(0) saturate(100%) invert(60%) sepia(100%) saturate(2000%) hue-rotate(340deg) brightness(1.1);
+}
+
+.edit-comment-btn:hover .comment-btn-icon {
+    filter: brightness(0) saturate(100%) invert(70%) sepia(50%) saturate(500%) hue-rotate(80deg) brightness(1.1);
 }
 
 .comment-text {
@@ -891,7 +911,42 @@ small {
 }
 
 .comment-form textarea {
+    margin-bottom: 0;
+}
+
+#newCommentContainer {
     margin-bottom: 10px;
+}
+
+.btn-save-comment {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: transparent;
+    border: 1px solid var(--accent-green);
+    border-radius: 6px;
+    color: var(--accent-green);
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: all 0.3s ease;
+    margin-top: 0;
+}
+
+.btn-save-comment:hover {
+    background: rgba(74, 154, 74, 0.2);
+    border-color: var(--light-green);
+    color: var(--light-green);
+}
+
+.btn-save-comment-icon {
+    width: 18px;
+    height: 18px;
+    filter: brightness(0) saturate(100%) invert(50%) sepia(80%) saturate(500%) hue-rotate(80deg) brightness(0.9);
+}
+
+.btn-save-comment:hover .btn-save-comment-icon {
+    filter: brightness(0) saturate(100%) invert(70%) sepia(50%) saturate(500%) hue-rotate(80deg) brightness(1.1);
 }
 
 .hidden {
@@ -1291,7 +1346,7 @@ small {
 .watering-icon-small {
     width: 100%;
     height: 100%;
-    filter: brightness(0) saturate(100%) invert(39%) sepia(98%) saturate(1749%) hue-rotate(195deg) brightness(101%) contrast(101%);
+    filter: brightness(0) saturate(100%) invert(75%) sepia(50%) saturate(500%) hue-rotate(180deg) brightness(1.2) contrast(1.1);
 }
 
 /* Lightbox para fotos */
