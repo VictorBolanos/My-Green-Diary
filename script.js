@@ -374,6 +374,71 @@ class PlantManager {
         }
     }
 
+    // Mostrar tooltip genérico para donuts del dashboard
+    showDashboardTooltip(event, text) {
+        // Eliminar tooltip anterior si existe
+        const existingTooltip = document.getElementById('dashboardTooltip');
+        if (existingTooltip) {
+            existingTooltip.remove();
+        }
+        
+        // Crear tooltip
+        const tooltip = document.createElement('div');
+        tooltip.id = 'dashboardTooltip';
+        tooltip.style.cssText = `
+            position: fixed;
+            background: rgba(10, 31, 10, 0.95);
+            backdrop-filter: blur(10px);
+            border: 2px solid var(--accent-green);
+            border-radius: 8px;
+            padding: 10px 15px;
+            color: var(--text-light);
+            font-size: 0.9rem;
+            font-weight: 600;
+            z-index: 10000;
+            pointer-events: none;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+            opacity: 0;
+            transition: opacity 0.2s ease;
+            line-height: 1.4;
+            white-space: nowrap;
+        `;
+        tooltip.textContent = text;
+        document.body.appendChild(tooltip);
+        
+        // Posicionar tooltip
+        this.updateDashboardTooltipPosition(event);
+        
+        // Mostrar con animación
+        setTimeout(() => {
+            tooltip.style.opacity = '1';
+        }, 10);
+    }
+
+    // Actualizar posición del tooltip del dashboard
+    updateDashboardTooltipPosition(event) {
+        const tooltip = document.getElementById('dashboardTooltip');
+        if (tooltip && event) {
+            const x = event.clientX + 15;
+            const y = event.clientY - 15;
+            tooltip.style.left = `${x}px`;
+            tooltip.style.top = `${y}px`;
+        }
+    }
+
+    // Ocultar tooltip del dashboard
+    hideDashboardTooltip() {
+        const tooltip = document.getElementById('dashboardTooltip');
+        if (tooltip) {
+            tooltip.style.opacity = '0';
+            setTimeout(() => {
+                if (tooltip && tooltip.parentNode) {
+                    tooltip.remove();
+                }
+            }, 200);
+        }
+    }
+
     // Crear slice de donut (arco con radio interior y exterior)
     createDonutSlice(centerX, centerY, innerRadius, outerRadius, startAngle, endAngle) {
         // Puntos exteriores
@@ -1696,6 +1761,11 @@ class PlantManager {
         let humidityStats = {};
         let tempStats = {};
         let wateringFreqStats = { alta: 0, moderado: 0, bajo: 0 };
+        
+        // Contadores separados para el gráfico donut de salud
+        let healthyOnlyPlants = 0; // Saludables y no baby
+        let poorHealthOnlyPlants = 0; // Mala salud pero no baby
+        let babyOnlyPlants = 0; // Baby (pueden tener o no poorHealth)
 
         plants.forEach(plant => {
             const normalized = this.normalizePlantData(plant);
@@ -1709,12 +1779,24 @@ class PlantManager {
                 needsWater++;
             }
             
-            if (plant.poorHealth) {
+            const isBaby = plant.baby || false;
+            const isPoorHealth = plant.poorHealth || false;
+            
+            if (isPoorHealth) {
                 poorHealth++;
             }
             
-            if (plant.baby) {
+            if (isBaby) {
                 babyPlants++;
+            }
+            
+            // Clasificar para el gráfico donut
+            if (isBaby) {
+                babyOnlyPlants++;
+            } else if (isPoorHealth) {
+                poorHealthOnlyPlants++;
+            } else {
+                healthyOnlyPlants++;
             }
             
             if (plant.createdAt && this.daysSince(plant.createdAt) <= 7) {
@@ -1789,7 +1871,8 @@ class PlantManager {
                 // Convertir grados a radianes
                 const startAngleRad = (currentAngleDeg * Math.PI) / 180;
                 const endAngleRad = (endAngleDeg * Math.PI) / 180;
-                donutPaths += `<path d="${this.createDonutSlice(centerX, centerY, innerRadius, radius, startAngleRad, endAngleRad)}" fill="${color}"/>`;
+                const tooltipText = `${type}: ${Math.round(percentage)}% (${count} planta${count !== 1 ? 's' : ''})`;
+                donutPaths += `<path d="${this.createDonutSlice(centerX, centerY, innerRadius, radius, startAngleRad, endAngleRad)}" fill="${color}" data-tooltip="${this.escapeHtml(tooltipText)}" style="cursor: pointer;" />`;
                 currentAngleDeg = endAngleDeg;
             }
         });
@@ -1803,7 +1886,7 @@ class PlantManager {
             </svg>
         `;
 
-        // Generar donut chart SVG para salud (ARREGLADO)
+        // Generar donut chart SVG para salud (con tres segmentos: verde, rojo, amarillo)
         const healthDonutSize = 110;
         const healthRadius = 38;
         const healthInnerRadius = 22;
@@ -1814,37 +1897,62 @@ class PlantManager {
         if (totalPlants > 0) {
             let healthyPath = '';
             let poorPath = '';
+            let babyPath = '';
             
             // Convertir grados a radianes
             const startAngleDeg = -90;
             const startAngleRad = (startAngleDeg * Math.PI) / 180;
             const fullCircleRad = (270 * Math.PI) / 180;
             
-            if (healthPercentage === 100 && healthyPlants > 0) {
-                // Si todas están saludables, círculo completo verde
-                healthyPath = this.createDonutSlice(healthCenterX, healthCenterY, healthInnerRadius, healthRadius, startAngleRad, fullCircleRad);
-            } else if (healthPercentage === 0 && poorHealth > 0) {
-                // Si ninguna está saludable, círculo completo rojo
-                poorPath = this.createDonutSlice(healthCenterX, healthCenterY, healthInnerRadius, healthRadius, startAngleRad, fullCircleRad);
-            } else if (totalPlants > 0) {
-                // Caso normal: dos segmentos
-                const healthyAngleDeg = (healthPercentage / 100) * 360;
-                const healthyEndAngleDeg = startAngleDeg + healthyAngleDeg;
-                const healthyEndAngleRad = (healthyEndAngleDeg * Math.PI) / 180;
-                
-                if (healthyPlants > 0) {
-                    healthyPath = this.createDonutSlice(healthCenterX, healthCenterY, healthInnerRadius, healthRadius, startAngleRad, healthyEndAngleRad);
-                }
-                if (poorHealth > 0) {
-                    poorPath = this.createDonutSlice(healthCenterX, healthCenterY, healthInnerRadius, healthRadius, healthyEndAngleRad, fullCircleRad);
-                }
+            // Calcular porcentajes para cada categoría
+            const healthyPercentage = totalPlants > 0 ? (healthyOnlyPlants / totalPlants) * 100 : 0;
+            const poorPercentage = totalPlants > 0 ? (poorHealthOnlyPlants / totalPlants) * 100 : 0;
+            const babyPercentage = totalPlants > 0 ? (babyOnlyPlants / totalPlants) * 100 : 0;
+            
+            // Calcular ángulos en radianes
+            let currentAngleRad = startAngleRad;
+            
+            // Segmento verde: saludables (no baby, no poorHealth)
+            let healthyPathWithTooltip = '';
+            if (healthyOnlyPlants > 0) {
+                const healthyAngleRad = (healthyPercentage / 100) * (2 * Math.PI);
+                const healthyEndAngleRad = currentAngleRad + healthyAngleRad;
+                const healthyPathData = this.createDonutSlice(healthCenterX, healthCenterY, healthInnerRadius, healthRadius, currentAngleRad, healthyEndAngleRad);
+                const healthyTooltip = `Saludable: ${Math.round(healthyPercentage)}% (${healthyOnlyPlants} planta${healthyOnlyPlants !== 1 ? 's' : ''})`;
+                healthyPathWithTooltip = `<path d="${healthyPathData}" fill="var(--accent-green)" data-tooltip="${healthyTooltip}" data-segment="healthy" style="cursor: pointer;" />`;
+                healthyPath = healthyPathData;
+                currentAngleRad = healthyEndAngleRad;
+            }
+            
+            // Segmento amarillo: baby/esqueje
+            let babyPathWithTooltip = '';
+            if (babyOnlyPlants > 0) {
+                const babyAngleRad = (babyPercentage / 100) * (2 * Math.PI);
+                const babyEndAngleRad = currentAngleRad + babyAngleRad;
+                const babyPathData = this.createDonutSlice(healthCenterX, healthCenterY, healthInnerRadius, healthRadius, currentAngleRad, babyEndAngleRad);
+                const babyTooltip = `Baby/Esqueje: ${Math.round(babyPercentage)}% (${babyOnlyPlants} planta${babyOnlyPlants !== 1 ? 's' : ''})`;
+                babyPathWithTooltip = `<path d="${babyPathData}" fill="rgba(255, 193, 7, 0.8)" data-tooltip="${babyTooltip}" data-segment="baby" style="cursor: pointer;" />`;
+                babyPath = babyPathData;
+                currentAngleRad = babyEndAngleRad;
+            }
+            
+            // Segmento rojo: mala salud (no baby)
+            let poorPathWithTooltip = '';
+            if (poorHealthOnlyPlants > 0) {
+                const poorAngleRad = (poorPercentage / 100) * (2 * Math.PI);
+                const poorEndAngleRad = currentAngleRad + poorAngleRad;
+                const poorPathData = this.createDonutSlice(healthCenterX, healthCenterY, healthInnerRadius, healthRadius, currentAngleRad, poorEndAngleRad);
+                const poorTooltip = `Mala salud: ${Math.round(poorPercentage)}% (${poorHealthOnlyPlants} planta${poorHealthOnlyPlants !== 1 ? 's' : ''})`;
+                poorPathWithTooltip = `<path d="${poorPathData}" fill="rgba(220, 53, 69, 0.8)" data-tooltip="${poorTooltip}" data-segment="poor" style="cursor: pointer;" />`;
+                poorPath = poorPathData;
             }
             
             healthDonutSvg = `
                 <svg width="${healthDonutSize}" height="${healthDonutSize}" viewBox="0 0 ${healthDonutSize} ${healthDonutSize}">
                     <circle cx="${healthCenterX}" cy="${healthCenterY}" r="${healthInnerRadius}" fill="#1a3a1a"/>
-                    ${healthyPath ? `<path d="${healthyPath}" fill="var(--accent-green)"/>` : ''}
-                    ${poorPath ? `<path d="${poorPath}" fill="rgba(220, 53, 69, 0.8)"/>` : ''}
+                    ${healthyPathWithTooltip}
+                    ${babyPathWithTooltip}
+                    ${poorPathWithTooltip}
                     <text x="${healthCenterX}" y="${healthCenterY + 4}" text-anchor="middle" 
                           fill="var(--text-light)" font-size="18" font-weight="700">${healthPercentage}%</text>
                 </svg>
@@ -2053,7 +2161,58 @@ class PlantManager {
                 });
             }
             
+            // Añadir tooltips a los paths del donut de tipo
+            document.querySelectorAll('.dashboard-panel').forEach(panel => {
+                const title = panel.querySelector('.dashboard-panel-title');
+                if (title && title.textContent.includes('Distribución por tipo')) {
+                    const svg = panel.querySelector('.dashboard-donut-wrapper svg');
+                    if (svg) {
+                        const paths = svg.querySelectorAll('path');
+                        paths.forEach((path, index) => {
+                            const tooltipText = path.getAttribute('data-tooltip');
+                            if (tooltipText) {
+                                path.addEventListener('mouseenter', (e) => {
+                                    this.showDashboardTooltip(e, tooltipText);
+                                });
+                                path.addEventListener('mouseleave', () => {
+                                    this.hideDashboardTooltip();
+                                });
+                                path.addEventListener('mousemove', (e) => {
+                                    this.updateDashboardTooltipPosition(e);
+                                });
+                            }
+                        });
+                    }
+                }
+            });
+            
+            // Añadir tooltips a los paths del donut de salud
+            document.querySelectorAll('.dashboard-panel').forEach(panel => {
+                const title = panel.querySelector('.dashboard-panel-title');
+                if (title && title.textContent.includes('Estado de Salud')) {
+                    const svg = panel.querySelector('.dashboard-donut-wrapper svg');
+                    if (svg) {
+                        const paths = svg.querySelectorAll('path');
+                        paths.forEach((path) => {
+                            const tooltipText = path.getAttribute('data-tooltip');
+                            if (tooltipText) {
+                                path.addEventListener('mouseenter', (e) => {
+                                    this.showDashboardTooltip(e, tooltipText);
+                                });
+                                path.addEventListener('mouseleave', () => {
+                                    this.hideDashboardTooltip();
+                                });
+                                path.addEventListener('mousemove', (e) => {
+                                    this.updateDashboardTooltipPosition(e);
+                                });
+                            }
+                        });
+                    }
+                }
+            });
+            
             // Filtrado por tipo desde la leyenda del donut
+            
             document.querySelectorAll('.dashboard-compact-legend-item').forEach((item, index) => {
                 const panel = item.closest('.dashboard-panel');
                 if (panel && panel.querySelector('.dashboard-panel-title').textContent.includes('tipo')) {
