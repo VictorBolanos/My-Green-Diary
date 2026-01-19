@@ -1,6 +1,6 @@
-# 🌿 My Green Diary
-
 <div align="center">
+
+<img src="img/My Green Diary Logo.png" alt="My Green Diary Logo" width="400">
 
 **Un diario digital moderno e interactivo para gestionar y cuidar todas tus plantas de interior**
 
