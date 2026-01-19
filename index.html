@@ -259,17 +259,6 @@
                     </div>
 
                     <div class="form-group">
-                        <label class="switch-label">
-                            <img src="img/icons/warning.svg" alt="Advertencia" class="label-icon">
-                            <span>Planta en mala salud</span>
-                            <label class="switch">
-                                <input type="checkbox" id="plantPoorHealth">
-                                <span class="slider"></span>
-                            </label>
-                        </label>
-                    </div>
-
-                    <div class="form-group">
                         <label for="plantDiseases">
                             <img src="img/icons/virus.svg" alt="Enfermedades" class="label-icon"> Enfermedades/Plagas
                         </label>
@@ -305,6 +294,47 @@
                             <div class="dual-list-box">
                                 <div class="dual-list-label">Seleccionadas</div>
                                 <select id="plantDiseasesSelected" multiple size="10" class="dual-list-select">
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="plantStates">
+                            <img src="img/icons/sad.svg" alt="Estado" class="label-icon"> Estado de la Planta / Síntomas
+                        </label>
+                        <div class="dual-list-selector">
+                            <div class="dual-list-box">
+                                <div class="dual-list-label">Disponibles</div>
+                                <select id="plantStatesAvailable" multiple size="10" class="dual-list-select">
+                                    <option value="Hojas amarillas">Hojas amarillas</option>
+                                    <option value="Mustia">Mustia</option>
+                                    <option value="Pérdida de hojas">Pérdida de hojas</option>
+                                    <option value="Hojas secas">Hojas secas</option>
+                                    <option value="Hojas marrones">Hojas marrones</option>
+                                    <option value="Hojas caídas">Hojas caídas</option>
+                                    <option value="Tallo débil">Tallo débil</option>
+                                    <option value="Crecimiento lento">Crecimiento lento</option>
+                                    <option value="Sin crecimiento">Sin crecimiento</option>
+                                    <option value="Hojas pequeñas">Hojas pequeñas</option>
+                                    <option value="Hojas deformadas">Hojas deformadas</option>
+                                    <option value="Manchas en hojas">Manchas en hojas</option>
+                                    <option value="Raíces visibles">Raíces visibles</option>
+                                    <option value="Sustrato muy seco">Sustrato muy seco</option>
+                                    <option value="Sustrato muy húmedo">Sustrato muy húmedo</option>
+                                </select>
+                            </div>
+                            <div class="dual-list-buttons">
+                                <button type="button" class="dual-list-btn" id="addStateBtn" title="Añadir seleccionadas">
+                                    <img src="img/icons/plus.svg" alt="Añadir" class="dual-list-btn-icon">
+                                </button>
+                                <button type="button" class="dual-list-btn" id="removeStateBtn" title="Quitar seleccionadas">
+                                    <img src="img/icons/minus.svg" alt="Quitar" class="dual-list-btn-icon">
+                                </button>
+                            </div>
+                            <div class="dual-list-box">
+                                <div class="dual-list-label">Seleccionadas</div>
+                                <select id="plantStatesSelected" multiple size="10" class="dual-list-select">
                                 </select>
                             </div>
                         </div>

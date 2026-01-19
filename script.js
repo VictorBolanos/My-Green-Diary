@@ -670,13 +670,7 @@ class PlantManager {
                 plantFormModal.addEventListener('mouseup', (e) => {
                     // Solo cerrar si tanto mousedown como mouseup ocurrieron en el fondo
                     if (mouseDownOnBackground && e.target.id === 'plantFormModal') {
-                        // Verificar cambios antes de cerrar
-                        if (this.hasFormChanges()) {
-                            if (!confirm('¿Estás seguro de que quieres salir? Tienes cambios sin guardar que se perderán.')) {
-                                mouseDownOnBackground = false;
-                                return; // No cerrar si el usuario cancela
-                            }
-                        }
+                        // closePlantFormModal() ya verifica los cambios, no hace falta duplicar la verificación
                         this.closePlantFormModal();
                     }
                     mouseDownOnBackground = false;
@@ -786,6 +780,16 @@ class PlantManager {
             }
             if (removeDiseaseBtn) {
                 removeDiseaseBtn.addEventListener('click', () => this.removeDiseasesFromSelected());
+            }
+
+            // Dual-list selector para estados de planta
+            const addStateBtn = document.getElementById('addStateBtn');
+            const removeStateBtn = document.getElementById('removeStateBtn');
+            if (addStateBtn) {
+                addStateBtn.addEventListener('click', () => this.addPlantStatesToSelected());
+            }
+            if (removeStateBtn) {
+                removeStateBtn.addEventListener('click', () => this.removePlantStatesFromSelected());
             }
 
             // File upload preview
@@ -1032,11 +1036,11 @@ class PlantManager {
             this.plantBeforeEdit = null;
             modalTitle.textContent = 'Nueva Planta';
             document.getElementById('plantForm').reset();
-            // Resetear dual-list selector
+            // Resetear dual-list selectors
             this.initDualListSelector([]);
+            this.initPlantStateSelector([]);
             this.removePhotoPreview();
             this.initSubstrateSelector(); // Inicializar selector vacío
-            this.initDualListSelector([]); // Resetear dual-list selector
             this.initialFormData = null;
         }
         
@@ -1065,8 +1069,9 @@ class PlantManager {
             wateringSummer: document.getElementById('plantWateringSummer').value.trim(),
             wateringAutumn: document.getElementById('plantWateringAutumn').value.trim(),
             wateringWinter: document.getElementById('plantWateringWinter').value.trim(),
-            poorHealth: document.getElementById('plantPoorHealth').checked,
-            diseases: this.getSelectedDiseases()
+            poorHealth: this.calculatePoorHealth(),
+            diseases: this.getSelectedDiseases(),
+            plantStates: this.getSelectedPlantStates()
         };
     }
 
@@ -1091,8 +1096,9 @@ class PlantManager {
             wateringSummer: document.getElementById('plantWateringSummer').value.trim(),
             wateringAutumn: document.getElementById('plantWateringAutumn').value.trim(),
             wateringWinter: document.getElementById('plantWateringWinter').value.trim(),
-            poorHealth: document.getElementById('plantPoorHealth').checked,
-            diseases: this.getSelectedDiseases()
+            poorHealth: this.calculatePoorHealth(),
+            diseases: this.getSelectedDiseases(),
+            plantStates: this.getSelectedPlantStates()
         };
 
         // Comparar objetos (comparación profunda para substrate y diseases)
@@ -1109,7 +1115,7 @@ class PlantManager {
                 if (!keys2.includes(key)) return false;
                 if (key === 'substrate') {
                     if (!compareObjects(obj1[key] || {}, obj2[key] || {})) return false;
-                } else if (key === 'diseases') {
+                } else if (key === 'diseases' || key === 'plantStates') {
                     const arr1 = (obj1[key] || []).sort();
                     const arr2 = (obj2[key] || []).sort();
                     if (arr1.length !== arr2.length) return false;
@@ -1167,10 +1173,12 @@ class PlantManager {
         document.getElementById('plantWateringSummer').value = plant.wateringSummer || '';
         document.getElementById('plantWateringAutumn').value = plant.wateringAutumn || '';
         document.getElementById('plantWateringWinter').value = plant.wateringWinter || '';
-        document.getElementById('plantPoorHealth').checked = plant.poorHealth || false;
         
         // Cargar enfermedades seleccionadas en el dual-list
         this.initDualListSelector(plant.diseases || []);
+        
+        // Cargar estados de planta seleccionados en el dual-list
+        this.initPlantStateSelector(plant.plantStates || []);
         
         // Guardar datos iniciales después de cargar (con un pequeño delay para asegurar que todo está cargado)
         setTimeout(() => {
@@ -1200,6 +1208,14 @@ class PlantManager {
         } else {
             this.removePhotoPreview();
         }
+    }
+
+    // Calcular automáticamente si la planta está en mala salud
+    // Retorna true si hay al menos una enfermedad/plaga o un estado/síntoma
+    calculatePoorHealth() {
+        const diseases = this.getSelectedDiseases();
+        const plantStates = this.getSelectedPlantStates();
+        return (diseases.length > 0) || (plantStates.length > 0);
     }
 
     // Obtener enfermedades seleccionadas del dual-list
@@ -1270,6 +1286,83 @@ class PlantManager {
     removeDiseasesFromSelected() {
         const availableList = document.getElementById('plantDiseasesAvailable');
         const selectedList = document.getElementById('plantDiseasesSelected');
+        
+        if (!availableList || !selectedList) return;
+
+        const selectedOptions = Array.from(selectedList.selectedOptions);
+        selectedOptions.forEach(option => {
+            availableList.appendChild(option);
+        });
+    }
+
+    // Obtener estados de planta seleccionados del dual-list
+    getSelectedPlantStates() {
+        const selectedList = document.getElementById('plantStatesSelected');
+        if (!selectedList) return [];
+        return Array.from(selectedList.options).map(option => option.value);
+    }
+
+    // Inicializar el dual-list selector de estados con estados pre-seleccionados
+    initPlantStateSelector(selectedStates = []) {
+        const availableList = document.getElementById('plantStatesAvailable');
+        const selectedList = document.getElementById('plantStatesSelected');
+        
+        if (!availableList || !selectedList) return;
+
+        // Limpiar ambas listas
+        availableList.innerHTML = '';
+        selectedList.innerHTML = '';
+
+        // Lista completa de estados de planta
+        const allStates = [
+            'Hojas amarillas',
+            'Mustia',
+            'Pérdida de hojas',
+            'Hojas secas',
+            'Hojas marrones',
+            'Hojas caídas',
+            'Tallo débil',
+            'Crecimiento lento',
+            'Sin crecimiento',
+            'Hojas pequeñas',
+            'Hojas deformadas',
+            'Manchas en hojas',
+            'Raíces visibles',
+            'Sustrato muy seco',
+            'Sustrato muy húmedo'
+        ];
+
+        // Separar disponibles y seleccionadas
+        allStates.forEach(state => {
+            const option = document.createElement('option');
+            option.value = state;
+            option.textContent = state;
+            
+            if (selectedStates.includes(state)) {
+                selectedList.appendChild(option);
+            } else {
+                availableList.appendChild(option);
+            }
+        });
+    }
+
+    // Añadir estados seleccionados de disponibles a seleccionadas
+    addPlantStatesToSelected() {
+        const availableList = document.getElementById('plantStatesAvailable');
+        const selectedList = document.getElementById('plantStatesSelected');
+        
+        if (!availableList || !selectedList) return;
+
+        const selectedOptions = Array.from(availableList.selectedOptions);
+        selectedOptions.forEach(option => {
+            selectedList.appendChild(option);
+        });
+    }
+
+    // Quitar estados seleccionados de seleccionadas a disponibles
+    removePlantStatesFromSelected() {
+        const availableList = document.getElementById('plantStatesAvailable');
+        const selectedList = document.getElementById('plantStatesSelected');
         
         if (!availableList || !selectedList) return;
 
@@ -1431,8 +1524,10 @@ class PlantManager {
             wateringAutumn: document.getElementById('plantWateringAutumn').value.trim(),
             wateringWinter: document.getElementById('plantWateringWinter').value.trim(),
             wateringDates: existingPlant ? (this.normalizePlantData(existingPlant).wateringDates || []) : [],
-            poorHealth: document.getElementById('plantPoorHealth').checked,
+            poorHealth: this.calculatePoorHealth(),
             diseases: this.getSelectedDiseases(),
+            plantStates: this.getSelectedPlantStates(),
+            plantStates: this.getSelectedPlantStates(),
             comments: existingPlant?.comments || [],
             createdAt: existingPlant?.createdAt || new Date().toISOString()
         };
@@ -2599,6 +2694,19 @@ class PlantManager {
                             <div class="diseases-pills">
                                 ${plant.diseases.map(disease => `
                                     <span class="disease-pill">${this.escapeHtml(disease)}</span>
+                                `).join('')}
+                            </div>
+                        </div>
+                    </div>
+                ` : ''}
+
+                ${plant.plantStates && plant.plantStates.length > 0 ? `
+                    <div class="modal-section diseases-section">
+                        <div class="info-item">
+                            <span class="info-label"><img src="img/icons/sad.svg" alt="Estado" class="info-icon"> Estado de la Planta / Síntomas:</span>
+                            <div class="diseases-pills">
+                                ${plant.plantStates.map(state => `
+                                    <span class="disease-pill">${this.escapeHtml(state)}</span>
                                 `).join('')}
                             </div>
                         </div>
