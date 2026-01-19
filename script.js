@@ -1014,11 +1014,42 @@ class PlantManager {
     initBackground() {
         const savedBg = localStorage.getItem('plantDiaryBackground') || 'palm-tree-leaves';
         this.changeBackground(savedBg, false);
+        
+        // Cargar fondo personalizado si existe
+        const customBg = localStorage.getItem('plantDiaryCustomBackground');
+        if (customBg && savedBg === 'custom') {
+            document.body.style.backgroundImage = `url('${customBg}')`;
+        }
     }
 
     showBgModal() {
         const modal = document.getElementById('bgModal');
         const savedBg = localStorage.getItem('plantDiaryBackground') || 'palm-tree-leaves';
+        const customBg = localStorage.getItem('plantDiaryCustomBackground');
+        
+        // Mostrar/ocultar opción de fondo personalizado
+        const customBgOption = document.getElementById('customBgOption');
+        const customBgPreview = document.getElementById('customBgPreview');
+        const removeCustomBgBtn = document.getElementById('removeCustomBgBtn');
+        
+        if (customBg) {
+            if (customBgOption) {
+                customBgOption.style.display = 'block';
+                if (customBgPreview) {
+                    customBgPreview.src = customBg;
+                }
+            }
+            if (removeCustomBgBtn) {
+                removeCustomBgBtn.style.display = 'block';
+            }
+        } else {
+            if (customBgOption) {
+                customBgOption.style.display = 'none';
+            }
+            if (removeCustomBgBtn) {
+                removeCustomBgBtn.style.display = 'none';
+            }
+        }
         
         // Marcar el fondo activo
         document.querySelectorAll('.bg-option').forEach(option => {
@@ -1036,8 +1067,96 @@ class PlantManager {
                 this.closeBgModal();
             };
         });
+        
+        // Event listener para subir fondo personalizado
+        const customBgInput = document.getElementById('customBgInput');
+        if (customBgInput) {
+            customBgInput.onchange = (e) => {
+                this.handleCustomBackgroundUpload(e);
+            };
+        }
+        
+        // Event listener para eliminar fondo personalizado
+        if (removeCustomBgBtn) {
+            removeCustomBgBtn.onclick = () => {
+                this.removeCustomBackground();
+            };
+        }
 
         if (modal) modal.classList.remove('hidden');
+    }
+    
+    handleCustomBackgroundUpload(event) {
+        const file = event.target.files[0];
+        if (!file || !file.type.startsWith('image/')) {
+            this.showNotification('Por favor, selecciona una imagen válida', 'error');
+            return;
+        }
+        
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const imageData = e.target.result;
+            // Guardar en localStorage
+            localStorage.setItem('plantDiaryCustomBackground', imageData);
+            localStorage.setItem('plantDiaryBackground', 'custom');
+            
+            // Aplicar el fondo
+            document.body.style.backgroundImage = `url('${imageData}')`;
+            
+            // Actualizar el modal
+            const customBgOption = document.getElementById('customBgOption');
+            const customBgPreview = document.getElementById('customBgPreview');
+            const removeCustomBgBtn = document.getElementById('removeCustomBgBtn');
+            
+            if (customBgOption) {
+                customBgOption.style.display = 'block';
+                customBgOption.classList.add('active');
+                // Desmarcar otros fondos
+                document.querySelectorAll('.bg-option').forEach(option => {
+                    if (option !== customBgOption) {
+                        option.classList.remove('active');
+                    }
+                });
+            }
+            if (customBgPreview) {
+                customBgPreview.src = imageData;
+            }
+            if (removeCustomBgBtn) {
+                removeCustomBgBtn.style.display = 'block';
+            }
+            
+            this.showNotification('Fondo personalizado guardado correctamente', 'success');
+        };
+        
+        reader.onerror = () => {
+            this.showNotification('Error al leer la imagen', 'error');
+        };
+        
+        reader.readAsDataURL(file);
+    }
+    
+    removeCustomBackground() {
+        if (confirm('¿Estás seguro de que quieres eliminar el fondo personalizado?')) {
+            localStorage.removeItem('plantDiaryCustomBackground');
+            localStorage.setItem('plantDiaryBackground', 'palm-tree-leaves');
+            
+            // Aplicar fondo por defecto
+            this.changeBackground('palm-tree-leaves', false);
+            
+            // Ocultar opción personalizada en el modal
+            const customBgOption = document.getElementById('customBgOption');
+            const removeCustomBgBtn = document.getElementById('removeCustomBgBtn');
+            
+            if (customBgOption) {
+                customBgOption.style.display = 'none';
+                customBgOption.classList.remove('active');
+            }
+            if (removeCustomBgBtn) {
+                removeCustomBgBtn.style.display = 'none';
+            }
+            
+            this.showNotification('Fondo personalizado eliminado', 'success');
+        }
     }
 
     closeBgModal() {
@@ -1050,7 +1169,23 @@ class PlantManager {
             localStorage.setItem('plantDiaryBackground', bgName);
         }
         
-        const bgUrl = `img/bgs/${bgName}.jpg`;
+        let bgUrl;
+        if (bgName === 'custom') {
+            // Usar fondo personalizado de localStorage
+            const customBg = localStorage.getItem('plantDiaryCustomBackground');
+            if (customBg) {
+                bgUrl = customBg;
+            } else {
+                // Si no hay fondo personalizado, usar el por defecto
+                bgUrl = 'img/bgs/palm-tree-leaves.jpg';
+                if (save) {
+                    localStorage.setItem('plantDiaryBackground', 'palm-tree-leaves');
+                }
+            }
+        } else {
+            bgUrl = `img/bgs/${bgName}.jpg`;
+        }
+        
         document.body.style.backgroundImage = `url('${bgUrl}')`;
         
         // Marcar opción activa en el modal si está abierto

@@ -417,6 +417,20 @@
                         <p>Ave del Paraíso</p>
                         <span class="bg-check">✓</span>
                     </div>
+                    <div class="bg-option bg-option-custom" id="customBgOption" data-bg="custom" style="display: none;">
+                        <img id="customBgPreview" src="" alt="Fondo Personalizado">
+                        <p>Fondo Personalizado</p>
+                        <span class="bg-check">✓</span>
+                    </div>
+                </div>
+                <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid rgba(255, 255, 255, 0.2);">
+                    <label for="customBgInput" class="btn-secondary" style="display: inline-flex; align-items: center; justify-content: center; cursor: pointer; width: 100%;">
+                        <img src="img/icons/photo.svg" alt="Subir" class="btn-icon"> Subir Fondo Personalizado
+                    </label>
+                    <input type="file" id="customBgInput" accept="image/*" style="display: none;">
+                    <button id="removeCustomBgBtn" class="btn-secondary btn-small" style="display: none; margin-top: 10px; width: 100%;">
+                        <img src="img/icons/delete.svg" alt="Eliminar" class="btn-icon"> Eliminar Fondo Personalizado
+                    </button>
                 </div>
             </div>
         </div>
