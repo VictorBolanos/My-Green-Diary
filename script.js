@@ -29,8 +29,11 @@ class PlantManager {
         this.lightboxPlantId = null; // ID de la planta en el lightbox
         this.plantBeforeEdit = null; // Planta que estaba abierta antes de editar
         this.initialFormData = null; // Datos iniciales del formulario para detectar cambios
+        this.modalHistoryState = null; // Estado para manejar el botón atrás del navegador
         // Inicializar event listeners primero para que funcionen inmediatamente
         this.setupEventListeners();
+        // Configurar manejo del botón atrás en móvil
+        this.setupBackButtonHandler();
         // Luego cargar datos (async)
         this.initFirebase();
     }
@@ -601,6 +604,44 @@ class PlantManager {
         }
     }
 
+    // Configurar manejo del botón atrás del navegador en móvil
+    setupBackButtonHandler() {
+        if (!this.isMobileDevice()) return;
+        
+        // Escuchar el evento popstate (botón atrás)
+        window.addEventListener('popstate', (event) => {
+            const plantModal = document.getElementById('plantModal');
+            const plantFormModal = document.getElementById('plantFormModal');
+            const wateringCalendarModal = document.getElementById('wateringCalendarModal');
+            const photoLightboxModal = document.getElementById('photoLightboxModal');
+            
+            // Cerrar modales abiertos
+            if (plantModal && !plantModal.classList.contains('hidden')) {
+                plantModal.classList.add('hidden');
+                event.preventDefault();
+            } else if (plantFormModal && !plantFormModal.classList.contains('hidden')) {
+                // Verificar si hay cambios sin guardar
+                if (this.hasFormChanges()) {
+                    if (confirm('¿Estás seguro de que quieres salir? Tienes cambios sin guardar que se perderán.')) {
+                        this.closePlantFormModal();
+                    } else {
+                        // Prevenir que se cierre si el usuario cancela
+                        history.pushState({ modal: 'plantForm' }, '', window.location.href);
+                    }
+                } else {
+                    this.closePlantFormModal();
+                }
+                event.preventDefault();
+            } else if (wateringCalendarModal && !wateringCalendarModal.classList.contains('hidden')) {
+                wateringCalendarModal.classList.add('hidden');
+                event.preventDefault();
+            } else if (photoLightboxModal && !photoLightboxModal.classList.contains('hidden')) {
+                photoLightboxModal.classList.add('hidden');
+                event.preventDefault();
+            }
+        });
+    }
+
     async migrateToFirebase(localPlants) {
         try {
             const batch = this.db.batch();
@@ -728,7 +769,12 @@ class PlantManager {
                         // Solo cerrar si el formulario no está abierto
                         const formModal = document.getElementById('plantFormModal');
                         if (!formModal || formModal.classList.contains('hidden')) {
-                            this.closeModal();
+                            // Si es móvil y hay un estado en el historial, retroceder
+                            if (this.isMobileDevice() && history.state && history.state.modal === 'plantDetails') {
+                                history.back();
+                            } else {
+                                this.closeModal();
+                            }
                         }
                     });
                 }
@@ -1071,7 +1117,8 @@ class PlantManager {
             wateringWinter: document.getElementById('plantWateringWinter').value.trim(),
             poorHealth: this.calculatePoorHealth(),
             diseases: this.getSelectedDiseases(),
-            plantStates: this.getSelectedPlantStates()
+            plantStates: this.getSelectedPlantStates(),
+            baby: document.getElementById('plantBaby') ? document.getElementById('plantBaby').checked : false
         };
     }
 
@@ -1098,7 +1145,8 @@ class PlantManager {
             wateringWinter: document.getElementById('plantWateringWinter').value.trim(),
             poorHealth: this.calculatePoorHealth(),
             diseases: this.getSelectedDiseases(),
-            plantStates: this.getSelectedPlantStates()
+            plantStates: this.getSelectedPlantStates(),
+            baby: document.getElementById('plantBaby') ? document.getElementById('plantBaby').checked : false
         };
 
         // Comparar objetos (comparación profunda para substrate y diseases)
@@ -1141,6 +1189,11 @@ class PlantManager {
         const modal = document.getElementById('plantFormModal');
         const plantModal = document.getElementById('plantModal');
         
+        // Si es móvil y hay un estado en el historial, retroceder
+        if (this.isMobileDevice() && history.state && history.state.modal === 'plantForm') {
+            history.back();
+        }
+        
         modal.classList.add('hidden');
         this.currentEditingId = null;
         this.initialFormData = null;
@@ -1173,6 +1226,9 @@ class PlantManager {
         document.getElementById('plantWateringSummer').value = plant.wateringSummer || '';
         document.getElementById('plantWateringAutumn').value = plant.wateringAutumn || '';
         document.getElementById('plantWateringWinter').value = plant.wateringWinter || '';
+        if (document.getElementById('plantBaby')) {
+            document.getElementById('plantBaby').checked = plant.baby || false;
+        }
         
         // Cargar enfermedades seleccionadas en el dual-list
         this.initDualListSelector(plant.diseases || []);
@@ -1527,6 +1583,7 @@ class PlantManager {
             poorHealth: this.calculatePoorHealth(),
             diseases: this.getSelectedDiseases(),
             plantStates: this.getSelectedPlantStates(),
+            baby: document.getElementById('plantBaby') ? document.getElementById('plantBaby').checked : false,
             plantStates: this.getSelectedPlantStates(),
             comments: existingPlant?.comments || [],
             createdAt: existingPlant?.createdAt || new Date().toISOString()
@@ -1593,6 +1650,7 @@ class PlantManager {
         let totalPlants = plants.length;
         let needsWater = 0;
         let poorHealth = 0;
+        let babyPlants = 0;
         let recentPlants = 0;
         let typeStats = {};
         let lightStats = {};
@@ -1614,6 +1672,10 @@ class PlantManager {
             
             if (plant.poorHealth) {
                 poorHealth++;
+            }
+            
+            if (plant.baby) {
+                babyPlants++;
             }
             
             if (plant.createdAt && this.daysSince(plant.createdAt) <= 7) {
@@ -1854,9 +1916,13 @@ class PlantManager {
                                 <span class="dashboard-compact-color" style="background: var(--accent-green);"></span>
                                 <span>Saludable: ${healthyPlants}</span>
                             </div>
-                            <div class="dashboard-compact-legend-item">
+                            <div class="dashboard-compact-legend-item" onclick="plantManager.filterPlantsByBaby(true)" style="cursor: pointer;">
                                 <span class="dashboard-compact-color" style="background: rgba(220, 53, 69, 0.8);"></span>
                                 <span>Mala salud: ${poorHealth}</span>
+                            </div>
+                            <div class="dashboard-compact-legend-item" onclick="plantManager.filterPlantsByBaby(true)" style="cursor: pointer;">
+                                <span class="dashboard-compact-color" style="background: rgba(255, 193, 7, 0.8);"></span>
+                                <span>Baby/Esqueje: ${babyPlants}</span>
                             </div>
                         </div>
                         <div class="dashboard-donut-wrapper">
@@ -2217,11 +2283,18 @@ class PlantManager {
                         <h3 class="plant-card-title">${this.escapeHtml(plant.name)}</h3>
                         <p class="plant-card-species">${this.escapeHtml(plant.species)}${plant.variety ? ' - ' + this.escapeHtml(plant.variety) : ''}</p>
                     </div>
-                    ${plant.poorHealth ? `
-                        <div class="poor-health-indicator" title="Planta en mala salud">
-                            <img src="img/icons/warning.svg" alt="Mala salud" class="poor-health-icon">
-                        </div>
-                    ` : ''}
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        ${plant.baby ? `
+                            <div class="baby-indicator" title="Baby / Esqueje">
+                                <img src="img/icons/pacifier.svg" alt="Baby/Esqueje" class="baby-icon">
+                            </div>
+                        ` : ''}
+                        ${plant.poorHealth ? `
+                            <div class="poor-health-indicator" title="Planta en mala salud">
+                                <img src="img/icons/warning.svg" alt="Mala salud" class="poor-health-icon">
+                            </div>
+                        ` : ''}
+                    </div>
                 </div>
                 <img src="${lastPhoto}" alt="${this.escapeHtml(plant.name)}" class="plant-card-image" 
                      onerror="if(this.src !== 'https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=400') { plantManager.removeInvalidPhoto('${plant.id}', this.src).then(() => { this.src='https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=400'; }); } else { this.src='https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=400'; }">
@@ -2282,6 +2355,84 @@ class PlantManager {
         }
     }
 
+    async addWateringDate(plantId, dateStr) {
+        const plant = this.plants.find(p => p.id === plantId);
+        if (!plant) return;
+        
+        const normalizedPlant = this.normalizePlantData(plant);
+        
+        // Añadir la fecha si no existe ya
+        if (!normalizedPlant.wateringDates.includes(dateStr)) {
+            normalizedPlant.wateringDates.push(dateStr);
+            normalizedPlant.wateringDates.sort().reverse(); // Ordenar descendente
+        }
+        
+        // Actualizar planta normalizada
+        const index = this.plants.findIndex(p => p.id === plantId);
+        if (index !== -1) {
+            this.plants[index] = normalizedPlant;
+        }
+        
+        // Guardar individualmente en Firebase
+        const saved = await this.savePlantToFirebase(normalizedPlant);
+        if (!saved) {
+            await this.savePlants(); // Fallback
+        }
+        
+        // Actualizar el modal del calendario si está abierto
+        const calendarModal = document.getElementById('wateringCalendarModal');
+        if (calendarModal && !calendarModal.classList.contains('hidden')) {
+            this.showWateringCalendarModal(plantId);
+        }
+        
+        // Actualizar el modal de detalles si está abierto
+        const plantModal = document.getElementById('plantModal');
+        if (plantModal && !plantModal.classList.contains('hidden')) {
+            this.showPlantDetails(plant);
+        }
+        
+        this.renderPlants();
+        this.showNotification('Riego añadido correctamente', 'success');
+    }
+
+    async deleteWateringDate(plantId, dateStr) {
+        const plant = this.plants.find(p => p.id === plantId);
+        if (!plant) return;
+        
+        const normalizedPlant = this.normalizePlantData(plant);
+        
+        // Eliminar la fecha del array
+        normalizedPlant.wateringDates = normalizedPlant.wateringDates.filter(date => date !== dateStr);
+        normalizedPlant.wateringDates.sort().reverse(); // Ordenar descendente
+        
+        // Actualizar planta normalizada
+        const index = this.plants.findIndex(p => p.id === plantId);
+        if (index !== -1) {
+            this.plants[index] = normalizedPlant;
+        }
+        
+        // Guardar individualmente en Firebase
+        const saved = await this.savePlantToFirebase(normalizedPlant);
+        if (!saved) {
+            await this.savePlants(); // Fallback
+        }
+        
+        // Actualizar el modal del calendario si está abierto
+        const calendarModal = document.getElementById('wateringCalendarModal');
+        if (calendarModal && !calendarModal.classList.contains('hidden')) {
+            this.showWateringCalendarModal(plantId);
+        }
+        
+        // Actualizar el modal de detalles si está abierto
+        const plantModal = document.getElementById('plantModal');
+        if (plantModal && !plantModal.classList.contains('hidden')) {
+            this.showPlantDetails(plant);
+        }
+        
+        this.renderPlants();
+        this.showNotification('Riego eliminado correctamente', 'success');
+    }
+
     editPlant(plant) {
         // Guardar la planta que estaba abierta antes de editar (pero NO cerrar el modal)
         const plantModal = document.getElementById('plantModal');
@@ -2321,12 +2472,11 @@ class PlantManager {
     }
 
     generateWateringCalendar(wateringDates, plantId) {
-        if (!wateringDates || wateringDates.length === 0) {
-            return '<p style="color: var(--text-muted);">No hay riegos registrados aún.</p>';
-        }
+        // Mostrar calendario incluso si no hay riegos, para poder añadirlos
+        const datesToShow = wateringDates || [];
 
         const now = new Date();
-        const wateringDatesSet = new Set(wateringDates.map(date => {
+        const wateringDatesSet = new Set((datesToShow || []).map(date => {
             const d = new Date(date);
             return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
         }));
@@ -2368,9 +2518,18 @@ class PlantManager {
                 const isToday = day === now.getDate() && month === now.getMonth() && year === now.getFullYear();
                 
                 calendarHtml += `
-                    <div class="calendar-day-small ${isWatered ? 'watered' : ''} ${isToday ? 'today' : ''}" title="${dateStr}">
-                        ${isWatered ? '<img src="img/icons/water-drop.svg" alt="Riego" class="watering-icon-small">' : ''}
-                        <span class="day-number-small">${day}</span>
+                    <div class="calendar-day-small-wrapper" style="position: relative;">
+                        <div class="calendar-day-small ${isWatered ? 'watered' : ''} ${isToday ? 'today' : ''} ${!isWatered ? 'add-watering' : ''}" 
+                             title="${isWatered ? dateStr + ' - Click para eliminar' : dateStr + ' - Click para añadir riego'}"
+                             ${!isWatered ? `onclick="plantManager.addWateringDate('${plantId}', '${dateStr}')" style="cursor: pointer;"` : ''}>
+                            ${isWatered ? '<img src="img/icons/water-drop.svg" alt="Riego" class="watering-icon-small">' : ''}
+                            <span class="day-number-small">${day}</span>
+                        </div>
+                        ${isWatered ? `
+                            <button class="calendar-delete-watering-btn" onclick="event.stopPropagation(); plantManager.deleteWateringDate('${plantId}', '${dateStr}')" title="Eliminar riego">
+                                <img src="img/icons/delete.svg" alt="Eliminar" class="calendar-delete-icon">
+                            </button>
+                        ` : ''}
                     </div>
                 `;
             }
@@ -2415,11 +2574,8 @@ class PlantManager {
         const newModal = document.getElementById('wateringCalendarModal');
         const newModalBody = document.getElementById('wateringCalendarModalBody');
         
-        if (wateringDates.length === 0) {
-            newModalBody.innerHTML = '<p style="color: var(--text-muted);">No hay riegos registrados aún.</p>';
-        } else {
-            newModalBody.innerHTML = this.generateWateringCalendar(wateringDates, plantId);
-        }
+        // Siempre mostrar el calendario, incluso si no hay riegos (para poder añadirlos)
+        newModalBody.innerHTML = this.generateWateringCalendar(wateringDates, plantId);
         
         newModal.classList.remove('hidden');
         
@@ -2567,6 +2723,30 @@ class PlantManager {
         this.updateLightboxImage(targetPlantId, newIndex);
     }
 
+    // Navegar a la siguiente planta
+    navigateToNextPlant(currentPlantId) {
+        const currentIndex = this.plants.findIndex(p => p.id === currentPlantId);
+        if (currentIndex === -1) return;
+        
+        const nextIndex = (currentIndex + 1) % this.plants.length;
+        const nextPlant = this.plants[nextIndex];
+        if (nextPlant) {
+            this.showPlantDetails(nextPlant);
+        }
+    }
+
+    // Navegar a la planta anterior
+    navigateToPreviousPlant(currentPlantId) {
+        const currentIndex = this.plants.findIndex(p => p.id === currentPlantId);
+        if (currentIndex === -1) return;
+        
+        const prevIndex = currentIndex === 0 ? this.plants.length - 1 : currentIndex - 1;
+        const prevPlant = this.plants[prevIndex];
+        if (prevPlant) {
+            this.showPlantDetails(prevPlant);
+        }
+    }
+
     showPlantDetails(plant) {
         const modal = document.getElementById('plantModal');
         const modalBody = document.getElementById('modalBody');
@@ -2575,6 +2755,11 @@ class PlantManager {
         const lastPhoto = photos.length > 0 ? photos[photos.length - 1] : 'https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=800';
         const wateringDates = normalizedPlant.wateringDates || [];
         const lastWateringDate = wateringDates.length > 0 ? wateringDates[0] : null;
+        
+        // Obtener índices para navegación
+        const currentIndex = this.plants.findIndex(p => p.id === plant.id);
+        const hasNext = currentIndex !== -1 && currentIndex < this.plants.length - 1;
+        const hasPrev = currentIndex !== -1 && currentIndex > 0;
         
         // Inicializar índice del carrusel con la última foto
         if (photos.length > 0) {
@@ -2653,8 +2838,24 @@ class PlantManager {
             </div>
         `;
 
+        // Añadir estado al historial si es móvil
+        if (this.isMobileDevice()) {
+            history.pushState({ modal: 'plantDetails', plantId: plant.id }, '', window.location.href);
+        }
+        
         modalBody.innerHTML = `
             <div class="modal-body">
+                ${this.plants.length > 1 ? `
+                    <div class="plant-navigation" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; gap: 10px;">
+                        <button class="btn-action plant-nav-btn" ${!hasPrev ? 'disabled style="opacity: 0.3; cursor: not-allowed;"' : ''} onclick="plantManager.navigateToPreviousPlant('${plant.id}')" title="Planta anterior">
+                            <img src="img/icons/minus.svg" alt="Anterior" class="btn-action-icon" style="transform: rotate(90deg);">
+                        </button>
+                        <span style="color: var(--text-muted); font-size: 0.9rem;">${currentIndex + 1} / ${this.plants.length}</span>
+                        <button class="btn-action plant-nav-btn" ${!hasNext ? 'disabled style="opacity: 0.3; cursor: not-allowed;"' : ''} onclick="plantManager.navigateToNextPlant('${plant.id}')" title="Siguiente planta">
+                            <img src="img/icons/plus.svg" alt="Siguiente" class="btn-action-icon" style="transform: rotate(90deg);">
+                        </button>
+                    </div>
+                ` : ''}
                 ${photoCarouselHtml}
                 <div style="margin-top: 15px;">
                     <button class="btn-secondary btn-small" onclick="plantManager.addPhotoToPlant('${plant.id}')">
@@ -3174,7 +3375,13 @@ class PlantManager {
     }
 
     closeModal() {
-        document.getElementById('plantModal').classList.add('hidden');
+        const plantModal = document.getElementById('plantModal');
+        // Si es móvil y hay un estado en el historial, retroceder
+        if (this.isMobileDevice() && history.state && history.state.modal === 'plantDetails') {
+            history.back();
+        } else {
+            if (plantModal) plantModal.classList.add('hidden');
+        }
         // Cerrar también el modal de la leyenda de sustratos si está abierto
         const legendModal = document.getElementById('substrateLegendModal');
         if (legendModal) {
@@ -3183,6 +3390,21 @@ class PlantManager {
     }
 
     // Filtros y búsqueda
+    filterPlantsByBaby(isBaby) {
+        const filtered = this.plants.filter(plant => {
+            const normalized = this.normalizePlantData(plant);
+            return normalized.baby === isBaby;
+        });
+        this.renderPlants(filtered);
+        this.updateDashboard(filtered);
+        
+        // Actualizar búsqueda
+        const searchInput = document.getElementById('searchInput');
+        if (searchInput) {
+            searchInput.value = '';
+        }
+    }
+
     filterPlants(searchTerm) {
         const filtered = this.plants.filter(plant => {
             const searchLower = searchTerm.toLowerCase();

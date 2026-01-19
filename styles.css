@@ -748,13 +748,30 @@ small {
     border: 1px solid rgba(220, 53, 69, 0.6);
     border-radius: 50%;
     flex-shrink: 0;
-    margin-left: 10px;
 }
 
 .poor-health-icon {
     width: 18px;
     height: 18px;
     filter: brightness(0) saturate(100%) invert(39%) sepia(96%) saturate(1749%) hue-rotate(340deg) brightness(101%) contrast(101%);
+}
+
+.baby-indicator {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    background: rgba(255, 193, 7, 0.2);
+    border: 1px solid rgba(255, 193, 7, 0.6);
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.baby-icon {
+    width: 18px;
+    height: 18px;
+    filter: brightness(0) saturate(100%) invert(75%) sepia(98%) saturate(1352%) hue-rotate(0deg) brightness(1.1) contrast(1.05);
 }
 
 .plant-card-title {
@@ -1607,6 +1624,16 @@ small {
     border-color: #4a9a4a;
 }
 
+.calendar-day-small.add-watering {
+    transition: all 0.3s ease;
+}
+
+.calendar-day-small.add-watering:hover {
+    background: rgba(74, 154, 74, 0.2);
+    border-color: rgba(74, 154, 74, 0.5);
+    transform: scale(1.05);
+}
+
 .calendar-day-small.today {
     border-color: var(--light-green);
     box-shadow: 0 0 0 1px rgba(107, 184, 107, 0.3);
@@ -1653,6 +1680,72 @@ small {
     width: 100%;
     height: 100%;
     filter: brightness(0) saturate(100%) invert(75%) sepia(50%) saturate(500%) hue-rotate(180deg) brightness(1.2) contrast(1.1);
+}
+
+.calendar-day-small-wrapper {
+    position: relative;
+    display: inline-block;
+    width: 35px;
+    height: 35px;
+    min-width: 35px;
+    min-height: 35px;
+    max-width: 35px;
+    max-height: 35px;
+    box-sizing: border-box;
+}
+
+@media (max-width: 768px) {
+    .calendar-day-small-wrapper {
+        width: 26px;
+        height: 26px;
+        min-width: 26px;
+        min-height: 26px;
+        max-width: 26px;
+        max-height: 26px;
+    }
+}
+
+.calendar-delete-watering-btn {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    background: rgba(220, 53, 69, 0.95);
+    border: 2px solid rgba(255, 255, 255, 0.9);
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    z-index: 20;
+    padding: 0;
+    opacity: 0;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+
+.calendar-day-small-wrapper:hover .calendar-delete-watering-btn {
+    opacity: 1;
+    transform: scale(1.1);
+}
+
+.calendar-delete-watering-btn:hover {
+    background: rgba(220, 53, 69, 1);
+    border-color: rgba(255, 255, 255, 1);
+    transform: scale(1.2);
+    box-shadow: 0 3px 10px rgba(220, 53, 69, 0.6);
+}
+
+.calendar-delete-watering-btn:active {
+    transform: scale(1.05);
+}
+
+.calendar-delete-icon {
+    width: 12px;
+    height: 12px;
+    filter: brightness(0) invert(1);
+    pointer-events: none;
 }
 
 /* Lightbox para fotos */
@@ -2309,6 +2402,34 @@ small {
 .pin-key-submit:hover {
     background: rgba(74, 154, 74, 0.5);
     box-shadow: 0 0 12px rgba(74, 154, 74, 0.6);
+}
+
+/* Navegación entre plantas */
+.plant-navigation {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    gap: 10px;
+    padding: 10px;
+    background: rgba(10, 31, 10, 0.3);
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.plant-nav-btn {
+    flex: 0 0 auto;
+    min-width: 40px;
+}
+
+.plant-nav-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed !important;
+}
+
+.plant-nav-btn:disabled:hover {
+    transform: none !important;
+    background: rgba(10, 31, 10, 0.75) !important;
 }
 
 @media (max-width: 768px) {
