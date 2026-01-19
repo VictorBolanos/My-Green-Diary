@@ -2222,6 +2222,18 @@ small {
     font-weight: 500;
 }
 
+.disease-pill.clickable-pill {
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.disease-pill.clickable-pill:hover {
+    background: rgba(220, 53, 69, 0.4);
+    border-color: rgba(220, 53, 69, 0.8);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(220, 53, 69, 0.3);
+}
+
 /* Badge de mala salud */
 .poor-health-badge {
     color: #ff6b6b !important;

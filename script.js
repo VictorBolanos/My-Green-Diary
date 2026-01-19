@@ -1,5 +1,42 @@
 // Gestión de Plantas - My Green Diary
 
+// Base de datos de soluciones para enfermedades/plagas y estados/síntomas
+const PLANT_SOLUTIONS = {
+    // Enfermedades/Plagas
+    'Cochinilla algodonosa': 'Aplicar alcohol isopropílico 70% con algodón directamente sobre las cochinillas. Alternativa: jabón potásico diluido (1 cucharada/litro) pulverizado semanalmente. Para casos persistentes usar aceite de Neem.',
+    'Pulgón': 'Pulverizar con jabón insecticida (1 cucharada jabón líquido/litro agua) cada 3-5 días, especialmente en el envés de hojas. Alternativa: aceite de Neem o spray de ajo/cebolla. Aumentar humedad y atraer mariquitas.',
+    'Araña roja': 'Aumentar humedad ambiental rociando agua frecuentemente. Aplicar jabón potásico (5-10ml/litro) cada 3-5 días. Usar aceite de Neem o acaricidas específicos si la infestación es grave.',
+    'Trips': 'Aplicar jabón potásico o aceite de Neem pulverizado cada 5-7 días. Colocar trampas azules adhesivas. Aumentar humedad ambiental. En casos graves usar spinosad.',
+    'Mosca del sustrato (sciáridos)': 'Dejar secar el sustrato entre riegos. Aplicar nematodos beneficiosos (Steinernema) o BTI. Colocar trampas amarillas adhesivas cerca del sustrato. Mejorar drenaje.',
+    'Mosca blanca': 'Pulverizar con jabón potásico (1-4 cucharadas/galón) o aceite de Neem cada 7 días. Colocar trampas amarillas adhesivas. Introducir depredadores como Encarsia formosa.',
+    'Hormigas': 'Localizar y eliminar el hormiguero. Aplicar cebo específico para hormigas cerca de los senderos. Proteger la base de la planta con barreras físicas o tierra de diatomeas.',
+    'Caracoles/babosas (exterior)': 'Recoger manualmente al atardecer. Crear barreras con ceniza, cáscaras de huevo o cobre. Usar cebos específicos ecológicos o trampas con cerveza.',
+    'Orugas (exterior)': 'Recoger manualmente las orugas visibles. Aplicar Bacillus thuringiensis (Bt) que es específico y ecológico. Atraer aves insectívoras al jardín.',
+    'Nematodos': 'Solarizar el sustrato con plástico transparente en verano. Usar sustrato nuevo y plantas resistentes. Aplicar extractos de neem o ajo. Rotar cultivos.',
+    'Oídio': 'Aplicar azufre en polvo o bicarbonato de sodio (1 cucharada + ½ cucharadita jabón/litro). Pulverizar con leche diluida (1 parte leche/9 partes agua) semanalmente. Mejorar ventilación.',
+    'Mildiu': 'Eliminar hojas afectadas inmediatamente. Aplicar cobre (caldo bordelés) o extracto de cola de caballo. Mejorar ventilación, evitar mojar hojas al regar. Regar en la base.',
+    'Negrilla/fumagina': 'Eliminar la melaza que la causa (tratar pulgones/cochinillas primero). Limpiar hojas con agua jabonosa suave. Aplicar aceite de Neem para prevenir reinfección.',
+    'Podredumbre radicular': 'Sacar planta, eliminar raíces podridas con tijeras esterilizadas. Sumergir raíces sanas en peróxido de hidrógeno diluido. Replantar en sustrato nuevo y bien drenado. Reducir riegos.',
+    'Roya': 'Eliminar hojas muy afectadas. Aplicar azufre, cobre o fungicidas sistémicos (triazoles). Mejorar ventilación y evitar mojar hojas. Reducir humedad ambiental. Rotar fungicidas.',
+    
+    // Estados/Síntomas
+    'Hojas amarillas': 'Verificar riego: puede ser exceso o falta de agua. Revisar drenaje del sustrato. Comprobar si necesita abono o si hay carencia de nutrientes (nitrógeno, hierro).',
+    'Mustia': 'Aumentar riego si el sustrato está seco. Si está húmedo, puede ser exceso de agua o podredumbre radicular. Revisar raíces y mejorar drenaje.',
+    'Pérdida de hojas': 'Normal en algunas plantas en otoño. Si es anormal: revisar riego, temperatura, luz y humedad. Verificar plagas o enfermedades en hojas y tallos.',
+    'Hojas secas': 'Aumentar humedad ambiental y frecuencia de riego. Proteger de corrientes de aire y calefacción. Verificar que no esté expuesta a sol directo excesivo.',
+    'Hojas marrones': 'Puntas marrones: falta de humedad ambiental. Manchas marrones: puede ser exceso de sol, quemaduras o hongos. Ajustar ubicación y condiciones ambientales.',
+    'Hojas caídas': 'Verificar riego (exceso o falta). Revisar temperatura (demasiado frío o calor). Comprobar si necesita más luz o si está en corrientes de aire.',
+    'Tallo débil': 'Aumentar exposición a luz (falta de luz estira el tallo). Rotar la planta regularmente. Considerar tutor o soporte. Revisar si necesita más nutrientes.',
+    'Crecimiento lento': 'Verificar que tenga suficiente luz, nutrientes y espacio. Revisar si necesita trasplante. Comprobar temperatura y condiciones ambientales adecuadas.',
+    'Sin crecimiento': 'Revisar condiciones básicas: luz, temperatura, riego y nutrientes. Verificar si necesita trasplante o cambio de sustrato. Puede estar en periodo de reposo.',
+    'Hojas pequeñas': 'Aumentar luz y nutrientes. Verificar si necesita más espacio (trasplante). Revisar que no tenga carencias nutricionales o estrés hídrico.',
+    'Hojas deformadas': 'Puede ser por plagas (ácaros, trips), virus o carencias nutricionales. Revisar hojas y tallos. Aplicar tratamiento según la causa identificada.',
+    'Manchas en hojas': 'Manchas marrones/negras: hongos (aplicar fungicida). Manchas amarillas: virus o carencias. Eliminar hojas muy afectadas y tratar la causa.',
+    'Raíces visibles': 'Necesita trasplante urgente a maceta más grande. Las raíces salen por agujeros de drenaje o superficie. Usar sustrato nuevo y maceta 2-3cm más grande.',
+    'Sustrato muy seco': 'Aumentar frecuencia de riego. Verificar que el sustrato retenga humedad adecuadamente. Considerar cambiar a sustrato con más retención de agua.',
+    'Sustrato muy húmedo': 'Reducir riegos inmediatamente. Mejorar drenaje de la maceta. Verificar que no haya podredumbre radicular. Considerar cambiar sustrato por uno más drenante.'
+};
+
 // Tipos de sustrato con colores para el gráfico
 const SUBSTRATE_TYPES = [
     { id: 'universal', name: 'Sustrato universal', color: '#8B4513' }, // Marrón oscuro
@@ -13,7 +50,8 @@ const SUBSTRATE_TYPES = [
     { id: 'grava', name: 'Grava', color: '#607D8B' }, // Gris azulado medio
     { id: 'corteza_pino', name: 'Corteza de pino', color: '#795548' }, // Marrón medio
     { id: 'humus', name: 'Humus de lombriz', color: '#2E7D32' }, // Verde oscuro
-    { id: 'musgo', name: 'Musgo sphagnum', color: '#4CAF50' } // Verde claro
+    { id: 'musgo', name: 'Musgo sphagnum', color: '#4CAF50' }, // Verde claro
+    { id: 'carbon_vegetal', name: 'Carbón vegetal', color: '#212121' } // Negro/gris muy oscuro
 ];
 
 class PlantManager {
@@ -30,6 +68,7 @@ class PlantManager {
         this.plantBeforeEdit = null; // Planta que estaba abierta antes de editar
         this.initialFormData = null; // Datos iniciales del formulario para detectar cambios
         this.modalHistoryState = null; // Estado para manejar el botón atrás del navegador
+        this.solutionModalListenersAdded = false; // Flag para evitar añadir listeners múltiples veces
         // Inicializar event listeners primero para que funcionen inmediatamente
         this.setupEventListeners();
         // Configurar manejo del botón atrás en móvil
@@ -1912,11 +1951,11 @@ class PlantManager {
                     <h3 class="dashboard-panel-title">Estado de Salud</h3>
                     <div class="dashboard-horizontal-content">
                         <div class="dashboard-compact-legend">
-                            <div class="dashboard-compact-legend-item">
+                            <div class="dashboard-compact-legend-item" onclick="plantManager.filterByHealth('healthy')" style="cursor: pointer;">
                                 <span class="dashboard-compact-color" style="background: var(--accent-green);"></span>
                                 <span>Saludable: ${healthyPlants}</span>
                             </div>
-                            <div class="dashboard-compact-legend-item" onclick="plantManager.filterPlantsByBaby(true)" style="cursor: pointer;">
+                            <div class="dashboard-compact-legend-item" onclick="plantManager.filterByHealth('poor')" style="cursor: pointer;">
                                 <span class="dashboard-compact-color" style="background: rgba(220, 53, 69, 0.8);"></span>
                                 <span>Mala salud: ${poorHealth}</span>
                             </div>
@@ -2078,20 +2117,7 @@ class PlantManager {
                 }
             });
             
-            // Filtrado por estado de salud
-            document.querySelectorAll('.dashboard-compact-legend-item').forEach((item, index) => {
-                const panel = item.closest('.dashboard-panel');
-                if (panel && panel.querySelector('.dashboard-panel-title').textContent.includes('Salud')) {
-                    item.addEventListener('click', () => {
-                        const text = item.textContent.trim();
-                        if (text.includes('Saludable')) {
-                            this.filterByHealth('healthy');
-                        } else if (text.includes('Mala salud')) {
-                            this.filterByHealth('poor');
-                        }
-                    });
-                }
-            });
+            // Los filtros de salud ahora se manejan con onclick inline en el HTML
         }, 100);
     }
 
@@ -2170,21 +2196,27 @@ class PlantManager {
 
     filterByHealth(healthStatus) {
         const filtered = this.plants.filter(plant => {
+            const normalized = this.normalizePlantData(plant);
+            const isPoorHealth = normalized.poorHealth || false;
+            
             if (healthStatus === 'healthy') {
-                // Plantas saludables: health > 50
-                const health = parseInt(plant.health) || 0;
-                return health > 50;
+                // Plantas saludables: no tienen poorHealth = true
+                return !isPoorHealth;
             } else if (healthStatus === 'poor') {
-                // Plantas en mala salud: health <= 50
-                const health = parseInt(plant.health) || 0;
-                return health <= 50;
+                // Plantas en mala salud: tienen poorHealth = true
+                return isPoorHealth;
             }
             return false;
         });
         
         this.renderPlants(filtered);
-        const statusText = healthStatus === 'healthy' ? 'Saludable' : 'Mala salud';
-        this.showNotification(`Filtrado por estado: ${statusText}`, 'success');
+        this.updateDashboard(filtered);
+        
+        // Actualizar búsqueda
+        const searchInput = document.getElementById('searchInput');
+        if (searchInput) {
+            searchInput.value = '';
+        }
     }
 
     renderPlants(plantsToRender = null) {
@@ -2845,17 +2877,6 @@ class PlantManager {
         
         modalBody.innerHTML = `
             <div class="modal-body">
-                ${this.plants.length > 1 ? `
-                    <div class="plant-navigation" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; gap: 10px;">
-                        <button class="btn-action plant-nav-btn" ${!hasPrev ? 'disabled style="opacity: 0.3; cursor: not-allowed;"' : ''} onclick="plantManager.navigateToPreviousPlant('${plant.id}')" title="Planta anterior">
-                            <img src="img/icons/minus.svg" alt="Anterior" class="btn-action-icon" style="transform: rotate(90deg);">
-                        </button>
-                        <span style="color: var(--text-muted); font-size: 0.9rem;">${currentIndex + 1} / ${this.plants.length}</span>
-                        <button class="btn-action plant-nav-btn" ${!hasNext ? 'disabled style="opacity: 0.3; cursor: not-allowed;"' : ''} onclick="plantManager.navigateToNextPlant('${plant.id}')" title="Siguiente planta">
-                            <img src="img/icons/plus.svg" alt="Siguiente" class="btn-action-icon" style="transform: rotate(90deg);">
-                        </button>
-                    </div>
-                ` : ''}
                 ${photoCarouselHtml}
                 <div style="margin-top: 15px;">
                     <button class="btn-secondary btn-small" onclick="plantManager.addPhotoToPlant('${plant.id}')">
@@ -2864,6 +2885,17 @@ class PlantManager {
                 </div>
                 
                 <div class="modal-section">
+                    ${this.plants.length > 1 ? `
+                        <div class="plant-navigation" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; gap: 10px;">
+                            <button class="btn-action plant-nav-btn" ${!hasPrev ? 'disabled style="opacity: 0.3; cursor: not-allowed;"' : ''} onclick="plantManager.navigateToPreviousPlant('${plant.id}')" title="Planta anterior">
+                                <img src="img/icons/minus.svg" alt="Anterior" class="btn-action-icon" style="transform: rotate(90deg);">
+                            </button>
+                            <span style="color: var(--text-muted); font-size: 0.9rem;">${currentIndex + 1} / ${this.plants.length}</span>
+                            <button class="btn-action plant-nav-btn" ${!hasNext ? 'disabled style="opacity: 0.3; cursor: not-allowed;"' : ''} onclick="plantManager.navigateToNextPlant('${plant.id}')" title="Siguiente planta">
+                                <img src="img/icons/plus.svg" alt="Siguiente" class="btn-action-icon" style="transform: rotate(90deg);">
+                            </button>
+                        </div>
+                    ` : ''}
                     <h2 style="color: var(--light-green); margin-bottom: 10px; font-size: 2rem;">
                         ${this.escapeHtml(plant.name)}
                     </h2>
@@ -2894,7 +2926,7 @@ class PlantManager {
                             <span class="info-label"><img src="img/icons/virus.svg" alt="Enfermedades" class="info-icon"> Enfermedades/Plagas:</span>
                             <div class="diseases-pills">
                                 ${plant.diseases.map(disease => `
-                                    <span class="disease-pill">${this.escapeHtml(disease)}</span>
+                                    <span class="disease-pill clickable-pill" onclick="plantManager.showSolution('${this.escapeHtml(disease)}')" title="Click para ver solución">${this.escapeHtml(disease)}</span>
                                 `).join('')}
                             </div>
                         </div>
@@ -2907,7 +2939,7 @@ class PlantManager {
                             <span class="info-label"><img src="img/icons/sad.svg" alt="Estado" class="info-icon"> Estado de la Planta / Síntomas:</span>
                             <div class="diseases-pills">
                                 ${plant.plantStates.map(state => `
-                                    <span class="disease-pill">${this.escapeHtml(state)}</span>
+                                    <span class="disease-pill clickable-pill" onclick="plantManager.showSolution('${this.escapeHtml(state)}')" title="Click para ver solución">${this.escapeHtml(state)}</span>
                                 `).join('')}
                             </div>
                         </div>
@@ -3653,6 +3685,58 @@ class PlantManager {
             toast.style.animation = 'slideOut 0.3s ease';
             setTimeout(() => toast.remove(), 300);
         }
+    }
+
+    showSolution(itemName) {
+        const solution = PLANT_SOLUTIONS[itemName];
+        if (!solution) {
+            this.showNotification('No hay solución disponible para este item', 'error');
+            return;
+        }
+        
+        // Crear o obtener el modal de soluciones
+        let solutionModal = document.getElementById('solutionModal');
+        if (!solutionModal) {
+            const modalHtml = `
+                <div id="solutionModal" class="modal hidden">
+                    <div class="modal-content glass-panel" style="max-width: 600px;">
+                        <span class="close-modal" onclick="document.getElementById('solutionModal').classList.add('hidden')">&times;</span>
+                        <h2 id="solutionModalTitle" style="color: var(--light-green); margin-bottom: 15px;"></h2>
+                        <div id="solutionModalBody" style="color: var(--text-light); line-height: 1.6;"></div>
+                    </div>
+                </div>
+            `;
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+            solutionModal = document.getElementById('solutionModal');
+        }
+        
+        // Añadir event listener para cerrar al hacer click fuera (solo en escritorio)
+        // Solo añadir listeners una vez usando una bandera
+        if (!this.solutionModalListenersAdded) {
+            if (!this.isMobileDevice()) {
+                let mouseDownOnBackground = false;
+                
+                solutionModal.addEventListener('mousedown', (e) => {
+                    mouseDownOnBackground = (e.target.id === 'solutionModal');
+                });
+                
+                solutionModal.addEventListener('mouseup', (e) => {
+                    if (mouseDownOnBackground && e.target.id === 'solutionModal') {
+                        solutionModal.classList.add('hidden');
+                    }
+                    mouseDownOnBackground = false;
+                });
+            }
+            this.solutionModalListenersAdded = true;
+        }
+        
+        const title = document.getElementById('solutionModalTitle');
+        const body = document.getElementById('solutionModalBody');
+        
+        if (title) title.textContent = `Solución: ${itemName}`;
+        if (body) body.textContent = solution;
+        
+        solutionModal.classList.remove('hidden');
     }
 
     showNotification(message, type = 'success') {
