@@ -3045,7 +3045,7 @@ class PlantManager {
                 
                 <div class="modal-section">
                     ${this.plants.length > 1 ? `
-                        <div class="plant-navigation" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; gap: 10px;">
+                        <div class="plant-navigation" style="display: flex; justify-content: space-between; align-items: center; margin-top: 20px; margin-bottom: 15px; gap: 10px;">
                             <button class="btn-action plant-nav-btn" ${!hasPrev ? 'disabled style="opacity: 0.3; cursor: not-allowed;"' : ''} onclick="plantManager.navigateToPreviousPlant('${plant.id}')" title="Planta anterior">
                                 <img src="img/icons/minus.svg" alt="Anterior" class="btn-action-icon" style="transform: rotate(90deg);">
                             </button>
@@ -3081,8 +3081,8 @@ class PlantManager {
 
                 ${plant.diseases && plant.diseases.length > 0 ? `
                     <div class="modal-section diseases-section">
-                        <div class="info-item">
-                            <span class="info-label"><img src="img/icons/virus.svg" alt="Enfermedades" class="info-icon"> Enfermedades/Plagas:</span>
+                        <div class="info-item diseases-info-item">
+                            <span class="info-label diseases-label"><img src="img/icons/virus.svg" alt="Enfermedades" class="info-icon"> Enfermedades/Plagas:</span>
                             <div class="diseases-pills">
                                 ${plant.diseases.map(disease => `
                                     <span class="disease-pill clickable-pill" onclick="plantManager.showSolution('${this.escapeHtml(disease)}')" title="Click para ver solución">${this.escapeHtml(disease)}</span>
@@ -3094,8 +3094,8 @@ class PlantManager {
 
                 ${plant.plantStates && plant.plantStates.length > 0 ? `
                     <div class="modal-section diseases-section">
-                        <div class="info-item">
-                            <span class="info-label"><img src="img/icons/sad.svg" alt="Estado" class="info-icon"> Estado de la Planta / Síntomas:</span>
+                        <div class="info-item diseases-info-item">
+                            <span class="info-label diseases-label"><img src="img/icons/sad.svg" alt="Estado" class="info-icon"> Estado de la Planta / Síntomas:</span>
                             <div class="diseases-pills">
                                 ${plant.plantStates.map(state => `
                                     <span class="disease-pill clickable-pill" onclick="plantManager.showSolution('${this.escapeHtml(state)}')" title="Click para ver solución">${this.escapeHtml(state)}</span>

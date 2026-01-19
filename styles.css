@@ -2252,6 +2252,26 @@ small {
     margin-bottom: 15px;
 }
 
+/* Estilos para móvil: label completo arriba, pills abajo */
+@media (max-width: 768px) {
+    .diseases-info-item {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .diseases-label {
+        white-space: nowrap;
+        width: 100%;
+        display: block;
+    }
+    
+    .diseases-pills {
+        width: 100%;
+        margin-top: 0;
+    }
+}
+
 /* Dual-list selector de enfermedades */
 .dual-list-selector {
     display: flex;
