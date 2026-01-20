@@ -65,6 +65,7 @@ class PlantManager {
         this.modalPhotoIndex = {}; // Índice del carrusel de fotos en modal
         this.lightboxPhotoIndex = 0; // Índice de la foto en el lightbox
         this.lightboxPlantId = null; // ID de la planta en el lightbox
+        this.lightboxCommentPhotos = null; // Fotos del comentario en el lightbox (si es un comentario)
         this.plantBeforeEdit = null; // Planta que estaba abierta antes de editar
         this.initialFormData = null; // Datos iniciales del formulario para detectar cambios
         this.modalHistoryState = null; // Estado para manejar el botón atrás del navegador
@@ -75,6 +76,173 @@ class PlantManager {
         this.setupBackButtonHandler();
         // Luego cargar datos (async)
         this.initFirebase();
+    }
+
+    // Helper: Detectar estación actual
+    getCurrentSeason() {
+        const now = new Date();
+        const month = now.getMonth() + 1; // 1-12
+        const day = now.getDate();
+        
+        // Primavera: 21 marzo - 20 junio
+        if ((month === 3 && day >= 21) || (month === 4) || (month === 5) || (month === 6 && day <= 20)) {
+            return 'spring';
+        }
+        // Verano: 21 junio - 22 septiembre
+        if ((month === 6 && day >= 21) || (month === 7) || (month === 8) || (month === 9 && day <= 22)) {
+            return 'summer';
+        }
+        // Otoño: 23 septiembre - 20 diciembre
+        if ((month === 9 && day >= 23) || (month === 10) || (month === 11) || (month === 12 && day <= 20)) {
+            return 'autumn';
+        }
+        // Invierno: 21 diciembre - 20 marzo
+        return 'winter';
+    }
+    
+    // Helper: Calcular frecuencia promedio de texto (ej: "5-7 días" -> 6)
+    calculateWateringFrequency(text) {
+        if (!text || typeof text !== 'string') return null;
+        
+        // Buscar patrones como "5-7", "5 a 7", "cada 5 días", etc.
+        const patterns = [
+            /(\d+)\s*[-–—]\s*(\d+)/,  // "5-7", "5 - 7"
+            /(\d+)\s+a\s+(\d+)/i,      // "5 a 7"
+            /cada\s+(\d+)/i,           // "cada 5"
+            /(\d+)\s*d[ií]a/i          // "5 días", "5 día"
+        ];
+        
+        for (const pattern of patterns) {
+            const match = text.match(pattern);
+            if (match) {
+                if (match[2]) {
+                    // Rango: calcular promedio
+                    const min = parseInt(match[1]);
+                    const max = parseInt(match[2]);
+                    return Math.round((min + max) / 2);
+                } else {
+                    // Número único
+                    return parseInt(match[1]);
+                }
+            }
+        }
+        
+        // Si no encuentra patrón, intentar extraer cualquier número
+        const numbers = text.match(/\d+/g);
+        if (numbers && numbers.length > 0) {
+            return parseInt(numbers[0]);
+        }
+        
+        return null;
+    }
+    
+    // Helper: Obtener frecuencia de riego según estación actual
+    getCurrentWateringFrequency(plant) {
+        const season = this.getCurrentSeason();
+        let frequencyText = '';
+        
+        switch(season) {
+            case 'spring':
+                frequencyText = plant.wateringSpring || '';
+                break;
+            case 'summer':
+                frequencyText = plant.wateringSummer || '';
+                break;
+            case 'autumn':
+                frequencyText = plant.wateringAutumn || '';
+                break;
+            case 'winter':
+                frequencyText = plant.wateringWinter || '';
+                break;
+        }
+        
+        return this.calculateWateringFrequency(frequencyText);
+    }
+    
+    // Helper: Calcular días de riego futuros basados en frecuencia
+    calculateWateringDays(plant, maxDays = 90) {
+        const normalizedPlant = this.normalizePlantData(plant);
+        const wateringDates = normalizedPlant.wateringDates || [];
+        const frequency = this.getCurrentWateringFrequency(plant);
+        
+        if (!frequency || frequency <= 0) return [];
+        
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        // Obtener último riego
+        let lastWateringDate = null;
+        if (wateringDates.length > 0) {
+            lastWateringDate = new Date(wateringDates[0] + 'T00:00:00');
+        }
+        
+        // Si no hay riegos previos, empezar desde hoy
+        if (!lastWateringDate) {
+            lastWateringDate = new Date(today);
+        }
+        
+        const wateringDays = [];
+        let currentDate = new Date(lastWateringDate);
+        
+        // Calcular próximos días de riego
+        while (wateringDays.length < maxDays / frequency) {
+            currentDate.setDate(currentDate.getDate() + frequency);
+            
+            // No incluir días pasados
+            if (currentDate < today) continue;
+            
+            // No incluir más de maxDays días en el futuro
+            const daysDiff = Math.floor((currentDate - today) / (1000 * 60 * 60 * 24));
+            if (daysDiff > maxDays) break;
+            
+            const dateStr = currentDate.toISOString().split('T')[0];
+            
+            // No incluir si ya está regado ese día
+            if (!wateringDates.includes(dateStr)) {
+                wateringDays.push(dateStr);
+            }
+        }
+        
+        return wateringDays;
+    }
+    
+    // Helper: Verificar si una planta necesita riego hoy
+    needsWateringToday(plant) {
+        const normalizedPlant = this.normalizePlantData(plant);
+        const wateringDates = normalizedPlant.wateringDates || [];
+        const frequency = this.getCurrentWateringFrequency(plant);
+        
+        if (!frequency || frequency <= 0) return false;
+        
+        const today = new Date().toISOString().split('T')[0];
+        
+        // Si ya se regó hoy, no necesita riego
+        if (wateringDates.includes(today)) return false;
+        
+        // Obtener último riego
+        if (wateringDates.length === 0) return true; // Nunca regada
+        
+        const lastWateringDate = new Date(wateringDates[0] + 'T00:00:00');
+        const todayDate = new Date(today + 'T00:00:00');
+        const daysSince = Math.floor((todayDate - lastWateringDate) / (1000 * 60 * 60 * 24));
+        
+        // Necesita riego si han pasado los días de frecuencia
+        return daysSince >= frequency;
+    }
+    
+    // Helper: Verificar si una planta tiene recordatorios personalizados que vencen hoy o están vencidos
+    hasCustomRemindersDueToday(plant) {
+        if (!plant.customReminders || !Array.isArray(plant.customReminders)) return false;
+        
+        const today = new Date().toISOString().split('T')[0];
+        const todayDate = new Date(today + 'T00:00:00');
+        
+        return plant.customReminders.some(reminder => {
+            if (!reminder.nextDue) return false;
+            const nextDueDate = new Date(reminder.nextDue + 'T00:00:00');
+            // Incluir si vence hoy o está vencido
+            return nextDueDate <= todayDate;
+        });
     }
 
     // Helper: Normalizar datos de planta (migrar estructura antigua)
@@ -680,6 +848,8 @@ class PlantManager {
         }
         // Renderizar plantas después de cargar los datos
         this.renderPlants();
+        // Renderizar avisos después de cargar plantas
+        this.renderReminders();
     }
 
     async loadPlantsFromFirebase() {
@@ -848,6 +1018,16 @@ class PlantManager {
             // Botón de toggle del dashboard
             const toggleDashboardBtn = document.getElementById('toggleDashboardBtn');
             if (toggleDashboardBtn) {
+                // Inicializar icono según estado inicial (colapsado por defecto)
+                const dashboardSection = document.getElementById('dashboardSection');
+                if (dashboardSection && dashboardSection.classList.contains('collapsed')) {
+                    const toggleIcon = toggleDashboardBtn.querySelector('.toggle-icon');
+                    if (toggleIcon) {
+                        toggleIcon.src = 'img/icons/plus.svg';
+                        toggleIcon.alt = 'Expandir';
+                    }
+                }
+                
                 toggleDashboardBtn.addEventListener('click', () => {
                     const dashboardSection = document.getElementById('dashboardSection');
                     const dashboardContent = document.getElementById('dashboardContent');
@@ -966,6 +1146,14 @@ class PlantManager {
                 });
             }
 
+            // Botón para añadir recordatorio personalizado
+            const addCustomReminderBtn = document.getElementById('addCustomReminderBtn');
+            if (addCustomReminderBtn) {
+                addCustomReminderBtn.addEventListener('click', () => {
+                    this.addCustomReminderForm();
+                });
+            }
+
             const applyFiltersBtn = document.getElementById('applyFiltersBtn');
             if (applyFiltersBtn) {
                 applyFiltersBtn.addEventListener('click', () => {
@@ -979,6 +1167,51 @@ class PlantManager {
                     this.clearAdvancedFilters();
                 });
             }
+
+            // Font changer
+            const changeFontBtn = document.getElementById('changeFontBtn');
+            if (changeFontBtn) {
+                changeFontBtn.addEventListener('click', () => {
+                    const modal = document.getElementById('fontModal');
+                    if (modal) {
+                        modal.classList.remove('hidden');
+                        this.updateFontModal();
+                    }
+                });
+            }
+
+            // Cerrar modal de fuente
+            const fontModal = document.getElementById('fontModal');
+            if (fontModal) {
+                const closeFontModal = fontModal.querySelector('.close-font-modal');
+                if (closeFontModal) {
+                    closeFontModal.addEventListener('click', () => {
+                        fontModal.classList.add('hidden');
+                    });
+                }
+                
+                if (!this.isMobileDevice()) {
+                    let mouseDownOnBackground = false;
+                    
+                    fontModal.addEventListener('mousedown', (e) => {
+                        mouseDownOnBackground = (e.target.id === 'fontModal' || e.target.classList.contains('close-font-modal'));
+                    });
+                    fontModal.addEventListener('mouseup', (e) => {
+                        if (mouseDownOnBackground && (e.target.id === 'fontModal' || e.target.classList.contains('close-font-modal'))) {
+                            fontModal.classList.add('hidden');
+                        }
+                        mouseDownOnBackground = false;
+                    });
+                }
+            }
+
+            // Opciones de fuente
+            document.querySelectorAll('.font-option').forEach(option => {
+                option.addEventListener('click', () => {
+                    const fontFamily = option.dataset.font;
+                    this.changeFont(fontFamily);
+                });
+            });
 
             // Background changer
             const changeBgBtn = document.getElementById('changeBgBtn');
@@ -1009,6 +1242,9 @@ class PlantManager {
 
         // Initialize background
         this.initBackground();
+        
+        // Initialize font
+        this.initFont();
     }
 
     initBackground() {
@@ -1019,6 +1255,13 @@ class PlantManager {
         const customBg = localStorage.getItem('plantDiaryCustomBackground');
         if (customBg && savedBg === 'custom') {
             document.body.style.backgroundImage = `url('${customBg}')`;
+        }
+    }
+    
+    initFont() {
+        const savedFont = localStorage.getItem('plantDiaryFont');
+        if (savedFont) {
+            this.changeFont(savedFont, false);
         }
     }
 
@@ -1196,6 +1439,76 @@ class PlantManager {
             }
         });
     }
+    
+    // Actualizar modal de fuente con la fuente activa
+    updateFontModal() {
+        const savedFont = localStorage.getItem('plantDiaryFont') || "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif";
+        document.querySelectorAll('.font-option').forEach(option => {
+            option.classList.remove('active');
+            if (option.dataset.font === savedFont) {
+                option.classList.add('active');
+            }
+        });
+    }
+    
+    // Cambiar fuente de toda la página
+    changeFont(fontFamily, save = true) {
+        if (save) {
+            localStorage.setItem('plantDiaryFont', fontFamily);
+        }
+        
+        // Aplicar fuente a todo el body y todos los elementos
+        document.body.style.fontFamily = fontFamily;
+        
+        // También aplicar a todos los elementos para asegurar que se aplique
+        const allElements = document.querySelectorAll('*');
+        allElements.forEach(el => {
+            el.style.fontFamily = fontFamily;
+        });
+        
+        // Marcar opción activa en el modal si está abierto
+        document.querySelectorAll('.font-option').forEach(option => {
+            option.classList.remove('active');
+            if (option.dataset.font === fontFamily) {
+                option.classList.add('active');
+            }
+        });
+    }
+    
+    // Actualizar modal de fuente con la fuente activa
+    updateFontModal() {
+        const savedFont = localStorage.getItem('plantDiaryFont') || "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif";
+        document.querySelectorAll('.font-option').forEach(option => {
+            option.classList.remove('active');
+            if (option.dataset.font === savedFont) {
+                option.classList.add('active');
+            }
+        });
+    }
+    
+    // Cambiar fuente de toda la página
+    changeFont(fontFamily, save = true) {
+        if (save) {
+            localStorage.setItem('plantDiaryFont', fontFamily);
+        }
+        
+        // Aplicar fuente a todo el body y todos los elementos
+        document.body.style.fontFamily = fontFamily;
+        
+        // También aplicar a todos los elementos para asegurar que se aplique
+        const allElements = document.querySelectorAll('*');
+        allElements.forEach(el => {
+            el.style.fontFamily = fontFamily;
+        });
+        
+        // Marcar opción activa en el modal si está abierto
+        document.querySelectorAll('.font-option').forEach(option => {
+            option.classList.remove('active');
+            if (option.dataset.font === fontFamily) {
+                option.classList.add('active');
+            }
+        });
+    }
 
     // Guardar una planta específica en Firebase
     async savePlantToFirebase(plant) {
@@ -1326,6 +1639,7 @@ class PlantManager {
             this.initPlantStateSelector([]);
             this.removePhotoPreview();
             this.initSubstrateSelector(); // Inicializar selector vacío
+            this.initCustomReminders([]); // Resetear recordatorios personalizados
             this.initialFormData = null;
         }
         
@@ -1474,6 +1788,9 @@ class PlantManager {
         
         // Cargar estados de planta seleccionados en el dual-list
         this.initPlantStateSelector(plant.plantStates || []);
+        
+        // Cargar recordatorios personalizados
+        this.initCustomReminders(plant.customReminders || []);
         
         // Guardar datos iniciales después de cargar (con un pequeño delay para asegurar que todo está cargado)
         setTimeout(() => {
@@ -1825,6 +2142,7 @@ class PlantManager {
             baby: document.getElementById('plantBaby') ? document.getElementById('plantBaby').checked : false,
             plantStates: this.getSelectedPlantStates(),
             comments: existingPlant?.comments || [],
+            customReminders: this.getCustomReminders(),
             createdAt: existingPlant?.createdAt || new Date().toISOString()
         };
 
@@ -1850,6 +2168,7 @@ class PlantManager {
         }
 
             this.renderPlants();
+            this.renderReminders(); // Actualizar avisos después de guardar
             
             // Si había una ficha abierta antes de editar, actualizarla con los nuevos datos
             if (this.plantBeforeEdit && this.currentEditingId) {
@@ -1874,10 +2193,521 @@ class PlantManager {
         }
     }
 
+    // Renderizar avisos de riego y recordatorios
+    renderReminders() {
+        const remindersSection = document.getElementById('remindersSection');
+        const remindersContent = document.getElementById('remindersContent');
+        if (!remindersSection || !remindersContent) return;
+        
+        const today = new Date().toISOString().split('T')[0];
+        const todayDate = new Date(today + 'T00:00:00');
+        const plantsNeedingWater = [];
+        const customRemindersDue = [];
+        
+        // Buscar plantas que necesitan riego hoy
+        this.plants.forEach(plant => {
+            if (this.needsWateringToday(plant)) {
+                plantsNeedingWater.push(plant);
+            }
+            
+            // Buscar recordatorios personalizados que vencen hoy o están vencidos
+            if (plant.customReminders && Array.isArray(plant.customReminders)) {
+                plant.customReminders.forEach(reminder => {
+                    if (reminder.nextDue) {
+                        const nextDueDate = new Date(reminder.nextDue + 'T00:00:00');
+                        // Incluir si vence hoy o está vencido
+                        if (nextDueDate <= todayDate) {
+                            customRemindersDue.push({
+                                plant: plant,
+                                reminder: reminder,
+                                isOverdue: nextDueDate < todayDate
+                            });
+                        }
+                    }
+                });
+            }
+        });
+        
+        // Si no hay avisos, ocultar la sección
+        if (plantsNeedingWater.length === 0 && customRemindersDue.length === 0) {
+            remindersSection.style.display = 'none';
+            return;
+        }
+        
+        // Mostrar la sección
+        remindersSection.style.display = 'block';
+        
+        let html = '';
+        
+        // Avisos de riego (PRIMERO)
+        if (plantsNeedingWater.length > 0) {
+            html += `
+                <div class="reminder-group">
+                    <div class="reminder-group-header">
+                        <img src="img/icons/water-drop.svg" alt="Riego" class="reminder-icon">
+                        <h3>Plantas que necesitan riego hoy (${plantsNeedingWater.length})</h3>
+                    </div>
+                    <div class="reminder-items">
+                        ${plantsNeedingWater.map(plant => `
+                            <div class="reminder-item watering-reminder" onclick="plantManager.showPlantDetails(plantManager.plants.find(p => p.id === '${plant.id}'))" style="cursor: pointer;">
+                                <div class="reminder-item-content">
+                                    <span class="reminder-plant-name">${this.escapeHtml(plant.name)}</span>
+                                    <span class="reminder-action">Necesita riego</span>
+                                </div>
+                                <button class="reminder-action-btn" onclick="event.stopPropagation(); (async () => { await plantManager.updateWatering('${plant.id}'); plantManager.renderReminders(); })();" title="Regar ahora">
+                                    <img src="img/icons/water-drop.svg" alt="Regar" class="reminder-btn-icon">
+                                </button>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Recordatorios personalizados
+        if (customRemindersDue.length > 0) {
+            // Separar vencidos y pendientes de hoy
+            const overdueReminders = customRemindersDue.filter(r => r.isOverdue);
+            const todayReminders = customRemindersDue.filter(r => !r.isOverdue);
+            
+            html += `
+                <div class="reminder-group">
+                    <div class="reminder-group-header">
+                        <img src="img/icons/notification.svg" alt="Recordatorios" class="reminder-icon">
+                        <h3>Recordatorios personalizados (${customRemindersDue.length})</h3>
+                    </div>
+                    <div class="reminder-items">
+                        ${overdueReminders.map(({plant, reminder}) => {
+                            const daysOverdue = Math.floor((todayDate - new Date(reminder.nextDue + 'T00:00:00')) / (1000 * 60 * 60 * 24));
+                            return `
+                            <div class="reminder-item custom-reminder overdue-reminder" onclick="plantManager.showPlantDetails(plantManager.plants.find(p => p.id === '${plant.id}'))" style="cursor: pointer;">
+                                <div class="reminder-item-content">
+                                    <span class="reminder-plant-name">${this.escapeHtml(plant.name)}</span>
+                                    <span class="reminder-action overdue-action">${this.escapeHtml(reminder.action)}</span>
+                                    <span class="reminder-overdue-badge">⚠️ Vencido hace ${daysOverdue} ${daysOverdue === 1 ? 'día' : 'días'}</span>
+                                </div>
+                                <button class="reminder-action-btn overdue-btn" onclick="event.stopPropagation(); plantManager.completeCustomReminder('${plant.id}', '${reminder.id}');" title="Marcar como completado">
+                                    <img src="img/icons/ok.svg" alt="Completar" class="reminder-btn-icon">
+                                </button>
+                            </div>
+                        `}).join('')}
+                        ${todayReminders.map(({plant, reminder}) => `
+                            <div class="reminder-item custom-reminder" onclick="plantManager.showPlantDetails(plantManager.plants.find(p => p.id === '${plant.id}'))" style="cursor: pointer;">
+                                <div class="reminder-item-content">
+                                    <span class="reminder-plant-name">${this.escapeHtml(plant.name)}</span>
+                                    <span class="reminder-action">${this.escapeHtml(reminder.action)}</span>
+                                </div>
+                                <button class="reminder-action-btn" onclick="event.stopPropagation(); plantManager.completeCustomReminder('${plant.id}', '${reminder.id}');" title="Marcar como completado">
+                                    <img src="img/icons/ok.svg" alt="Completar" class="reminder-btn-icon">
+                                </button>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+        
+        remindersContent.innerHTML = html;
+    }
+    
+    // Inicializar recordatorios personalizados en el formulario
+    initCustomReminders(reminders = []) {
+        const remindersList = document.getElementById('customRemindersList');
+        if (!remindersList) return;
+        
+        remindersList.innerHTML = '';
+        
+        reminders.forEach((reminder, index) => {
+            this.addCustomReminderItem(reminder, index);
+        });
+    }
+    
+    // Añadir item de recordatorio al formulario
+    addCustomReminderItem(reminder = null, index = null) {
+        const remindersList = document.getElementById('customRemindersList');
+        if (!remindersList) return;
+        
+        const reminderId = reminder?.id || `reminder-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        const action = reminder?.action || '';
+        const frequency = reminder?.frequency || '';
+        const lastCompleted = reminder?.lastCompleted || '';
+        const nextDue = reminder?.nextDue || '';
+        
+        const reminderItem = document.createElement('div');
+        reminderItem.className = 'custom-reminder-item';
+        reminderItem.dataset.reminderId = reminderId;
+        if (lastCompleted) {
+            reminderItem.dataset.lastCompleted = lastCompleted;
+        }
+        if (nextDue) {
+            reminderItem.dataset.nextDue = nextDue;
+        }
+        reminderItem.innerHTML = `
+            <div class="custom-reminder-form-row">
+                <div class="form-group" style="flex: 1;">
+                    <label>Acción</label>
+                    <select class="custom-reminder-action" data-reminder-id="${reminderId}">
+                        <option value="">Seleccionar...</option>
+                        <option value="Cambiar sustrato" ${action === 'Cambiar sustrato' ? 'selected' : ''}>Cambiar sustrato</option>
+                        <option value="Añadir abono" ${action === 'Añadir abono' ? 'selected' : ''}>Añadir abono</option>
+                        <option value="Podar" ${action === 'Podar' ? 'selected' : ''}>Podar</option>
+                        <option value="Limpiar hojas" ${action === 'Limpiar hojas' ? 'selected' : ''}>Limpiar hojas</option>
+                        <option value="Rotar maceta" ${action === 'Rotar maceta' ? 'selected' : ''}>Rotar maceta</option>
+                        <option value="Trasplantar" ${action === 'Trasplantar' ? 'selected' : ''}>Trasplantar</option>
+                        <option value="Fertilizar" ${action === 'Fertilizar' ? 'selected' : ''}>Fertilizar</option>
+                        <option value="Revisar raíces" ${action === 'Revisar raíces' ? 'selected' : ''}>Revisar raíces</option>
+                        <option value="Aplicar tratamiento" ${action === 'Aplicar tratamiento' ? 'selected' : ''}>Aplicar tratamiento</option>
+                        <option value="Otro" ${action === 'Otro' ? 'selected' : ''}>Otro</option>
+                    </select>
+                </div>
+                <div class="form-group" style="flex: 0 0 150px;">
+                    <label>Frecuencia (días)</label>
+                    <input type="number" class="custom-reminder-frequency" data-reminder-id="${reminderId}" 
+                           value="${frequency}" min="0" placeholder="Ej: 30 (0 para probar)">
+                </div>
+                <div class="form-group" style="flex: 0 0 40px; display: flex; align-items: flex-end;">
+                    <button type="button" class="btn-action btn-delete-action" onclick="plantManager.removeCustomReminderItem('${reminderId}')" title="Eliminar">
+                        <img src="img/icons/delete.svg" alt="Eliminar" class="btn-action-icon">
+                    </button>
+                </div>
+            </div>
+        `;
+        
+        remindersList.appendChild(reminderItem);
+    }
+    
+    // Añadir formulario de recordatorio nuevo
+    addCustomReminderForm() {
+        this.addCustomReminderItem();
+    }
+    
+    // Eliminar item de recordatorio del formulario
+    removeCustomReminderItem(reminderId) {
+        const reminderItem = document.querySelector(`[data-reminder-id="${reminderId}"]`);
+        if (reminderItem) {
+            reminderItem.remove();
+        }
+    }
+    
+    // Obtener recordatorios personalizados del formulario
+    getCustomReminders() {
+        const remindersList = document.getElementById('customRemindersList');
+        if (!remindersList) return [];
+        
+        const reminders = [];
+        const reminderItems = remindersList.querySelectorAll('.custom-reminder-item');
+        
+        reminderItems.forEach(item => {
+            const reminderId = item.dataset.reminderId;
+            const actionSelect = item.querySelector('.custom-reminder-action');
+            const frequencyInput = item.querySelector('.custom-reminder-frequency');
+            
+            if (actionSelect && frequencyInput) {
+                const action = actionSelect.value.trim();
+                const frequency = parseInt(frequencyInput.value);
+                
+                if (action && frequency >= 0 && !isNaN(frequency)) {
+                    // Obtener lastCompleted del dataset o del recordatorio original
+                    const lastCompleted = item.dataset.lastCompleted || '';
+                    const existingNextDue = item.dataset.nextDue || '';
+                    let nextDue = '';
+                    
+                    if (frequency === 0) {
+                        // Si es 0 días, vence hoy
+                        nextDue = new Date().toISOString().split('T')[0];
+                    } else if (lastCompleted) {
+                        // Si hay fecha de último completado, calcular próxima desde ahí
+                        const lastDate = new Date(lastCompleted + 'T00:00:00');
+                        lastDate.setDate(lastDate.getDate() + frequency);
+                        nextDue = lastDate.toISOString().split('T')[0];
+                    } else if (existingNextDue) {
+                        // Si existe nextDue pero no lastCompleted, mantenerlo (solo si no se cambió la frecuencia)
+                        // Si se cambió la frecuencia, recalcular desde hoy
+                        const today = new Date().toISOString().split('T')[0];
+                        const nextDueDate = new Date(existingNextDue + 'T00:00:00');
+                        const todayDate = new Date(today + 'T00:00:00');
+                        
+                        // Si la fecha programada es futura, mantenerla
+                        if (nextDueDate >= todayDate) {
+                            nextDue = existingNextDue;
+                        } else {
+                            // Si ya pasó, recalcular desde hoy
+                            const newDate = new Date(today + 'T00:00:00');
+                            newDate.setDate(newDate.getDate() + frequency);
+                            nextDue = newDate.toISOString().split('T')[0];
+                        }
+                    } else {
+                        // Si nunca se ha completado, empezar desde hoy + frecuencia
+                        const today = new Date();
+                        today.setDate(today.getDate() + frequency);
+                        nextDue = today.toISOString().split('T')[0];
+                    }
+                    
+                    reminders.push({
+                        id: reminderId,
+                        action: action,
+                        frequency: frequency,
+                        lastCompleted: lastCompleted || null,
+                        nextDue: nextDue
+                    });
+                }
+            }
+        });
+        
+        return reminders;
+    }
+    
+    // Completar un recordatorio personalizado
+    async completeCustomReminder(plantId, reminderId) {
+        const plant = this.plants.find(p => p.id === plantId);
+        if (!plant || !plant.customReminders) return;
+        
+        const reminder = plant.customReminders.find(r => r.id === reminderId);
+        if (!reminder) return;
+        
+        const today = new Date().toISOString().split('T')[0];
+        
+        // Actualizar recordatorio
+        reminder.lastCompleted = today;
+        const nextDate = new Date(today + 'T00:00:00');
+        nextDate.setDate(nextDate.getDate() + reminder.frequency);
+        reminder.nextDue = nextDate.toISOString().split('T')[0];
+        
+        // Guardar cambios
+        const saved = await this.savePlantToFirebase(plant);
+        if (!saved) {
+            await this.savePlants();
+        }
+        
+        this.renderReminders();
+        this.showPlantDetails(plant);
+        this.showNotification('Recordatorio completado', 'success');
+    }
+    
+    // Mostrar formulario para añadir recordatorio desde detalles
+    showAddCustomReminderForm(plantId) {
+        const form = document.getElementById(`customReminderAddForm-${plantId}`);
+        const btn = document.getElementById(`showAddReminderBtn-${plantId}`);
+        if (form && btn) {
+            form.style.display = 'block';
+            btn.style.display = 'none';
+        }
+    }
+    
+    // Cancelar añadir recordatorio desde detalles
+    cancelAddCustomReminder(plantId) {
+        const form = document.getElementById(`customReminderAddForm-${plantId}`);
+        const btn = document.getElementById(`showAddReminderBtn-${plantId}`);
+        if (form && btn) {
+            form.style.display = 'none';
+            btn.style.display = 'block';
+            // Limpiar campos
+            const actionSelect = document.getElementById(`newReminderAction-${plantId}`);
+            const frequencyInput = document.getElementById(`newReminderFrequency-${plantId}`);
+            if (actionSelect) actionSelect.value = '';
+            if (frequencyInput) frequencyInput.value = '';
+        }
+    }
+    
+    // Guardar nuevo recordatorio desde detalles
+    async saveNewCustomReminder(plantId) {
+        const plant = this.plants.find(p => p.id === plantId);
+        if (!plant) return;
+        
+        const actionSelect = document.getElementById(`newReminderAction-${plantId}`);
+        const frequencyInput = document.getElementById(`newReminderFrequency-${plantId}`);
+        
+        if (!actionSelect || !frequencyInput) return;
+        
+        const action = actionSelect.value.trim();
+        const frequency = parseInt(frequencyInput.value);
+        
+        if (!action || frequency < 0 || isNaN(frequency)) {
+            this.showNotification('Por favor, completa todos los campos correctamente', 'error');
+            return;
+        }
+        
+        // Crear nuevo recordatorio
+        const reminderId = `reminder-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        let nextDue = '';
+        
+        if (frequency === 0) {
+            // Si es 0 días, vence hoy
+            nextDue = new Date().toISOString().split('T')[0];
+        } else {
+            const today = new Date();
+            today.setDate(today.getDate() + frequency);
+            nextDue = today.toISOString().split('T')[0];
+        }
+        
+        const newReminder = {
+            id: reminderId,
+            action: action,
+            frequency: frequency,
+            lastCompleted: null,
+            nextDue: nextDue
+        };
+        
+        // Añadir a la planta
+        if (!plant.customReminders) {
+            plant.customReminders = [];
+        }
+        plant.customReminders.push(newReminder);
+        
+        // Guardar cambios
+        const saved = await this.savePlantToFirebase(plant);
+        if (!saved) {
+            await this.savePlants();
+        }
+        
+        this.renderReminders();
+        this.showPlantDetails(plant);
+        this.showNotification('Recordatorio añadido', 'success');
+    }
+    
+    // Editar recordatorio personalizado desde detalles
+    editCustomReminder(plantId, reminderId) {
+        const plant = this.plants.find(p => p.id === plantId);
+        if (!plant || !plant.customReminders) return;
+        
+        const reminder = plant.customReminders.find(r => r.id === reminderId);
+        if (!reminder) return;
+        
+        // Ocultar el item y mostrar formulario de edición
+        const reminderItem = document.querySelector(`[data-reminder-id="${reminderId}"]`);
+        if (!reminderItem) return;
+        
+        // Crear formulario de edición
+        const editFormHtml = `
+            <div class="custom-reminder-edit-form" data-reminder-id="${reminderId}" style="margin-top: 10px; padding: 15px; background: rgba(10, 31, 10, 0.5); border-radius: 8px; border: 2px solid rgba(74, 154, 74, 0.5);">
+                <div class="form-group" style="margin-bottom: 12px;">
+                    <label style="display: block; margin-bottom: 6px; color: var(--text-light); font-weight: 500;">Acción</label>
+                    <select id="editReminderAction-${reminderId}" class="custom-reminder-action-select" style="width: 100%; padding: 10px; border: 1px solid rgba(255, 255, 255, 0.8); border-radius: 6px; background: rgba(10, 31, 10, 0.7); color: var(--text-light); font-size: 0.9rem;">
+                        <option value="">Seleccionar...</option>
+                        <option value="Cambiar sustrato" ${reminder.action === 'Cambiar sustrato' ? 'selected' : ''}>Cambiar sustrato</option>
+                        <option value="Añadir abono" ${reminder.action === 'Añadir abono' ? 'selected' : ''}>Añadir abono</option>
+                        <option value="Podar" ${reminder.action === 'Podar' ? 'selected' : ''}>Podar</option>
+                        <option value="Limpiar hojas" ${reminder.action === 'Limpiar hojas' ? 'selected' : ''}>Limpiar hojas</option>
+                        <option value="Rotar maceta" ${reminder.action === 'Rotar maceta' ? 'selected' : ''}>Rotar maceta</option>
+                        <option value="Trasplantar" ${reminder.action === 'Trasplantar' ? 'selected' : ''}>Trasplantar</option>
+                        <option value="Fertilizar" ${reminder.action === 'Fertilizar' ? 'selected' : ''}>Fertilizar</option>
+                        <option value="Revisar raíces" ${reminder.action === 'Revisar raíces' ? 'selected' : ''}>Revisar raíces</option>
+                        <option value="Aplicar tratamiento" ${reminder.action === 'Aplicar tratamiento' ? 'selected' : ''}>Aplicar tratamiento</option>
+                        <option value="Otro" ${reminder.action === 'Otro' ? 'selected' : ''}>Otro</option>
+                    </select>
+                </div>
+                <div class="form-group" style="margin-bottom: 12px;">
+                    <label style="display: block; margin-bottom: 6px; color: var(--text-light); font-weight: 500;">Frecuencia (días)</label>
+                    <input type="number" id="editReminderFrequency-${reminderId}" class="custom-reminder-frequency-input" min="0" value="${reminder.frequency}" placeholder="Ej: 30 (0 para probar)" style="width: 100%; padding: 10px; border: 1px solid rgba(255, 255, 255, 0.8); border-radius: 6px; background: rgba(10, 31, 10, 0.7); color: var(--text-light); font-size: 0.9rem;">
+                </div>
+                <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                    <button class="btn-secondary btn-small" onclick="plantManager.cancelEditCustomReminder('${plantId}', '${reminderId}')">
+                        <img src="img/icons/cancel.svg" alt="Cancelar" class="btn-icon"> Cancelar
+                    </button>
+                    <button class="btn-primary btn-small" onclick="plantManager.saveEditCustomReminder('${plantId}', '${reminderId}')">
+                        <img src="img/icons/save.svg" alt="Guardar" class="btn-icon"> Guardar
+                    </button>
+                </div>
+            </div>
+        `;
+        
+        // Insertar formulario después del item
+        reminderItem.insertAdjacentHTML('afterend', editFormHtml);
+        
+        // Ocultar el item original
+        reminderItem.style.display = 'none';
+    }
+    
+    // Cancelar edición de recordatorio
+    cancelEditCustomReminder(plantId, reminderId) {
+        const editForm = document.querySelector(`.custom-reminder-edit-form[data-reminder-id="${reminderId}"]`);
+        const reminderItem = document.querySelector(`[data-reminder-id="${reminderId}"]`);
+        
+        if (editForm) editForm.remove();
+        if (reminderItem) reminderItem.style.display = 'flex';
+    }
+    
+    // Guardar edición de recordatorio
+    async saveEditCustomReminder(plantId, reminderId) {
+        const plant = this.plants.find(p => p.id === plantId);
+        if (!plant || !plant.customReminders) return;
+        
+        const reminder = plant.customReminders.find(r => r.id === reminderId);
+        if (!reminder) return;
+        
+        const actionSelect = document.getElementById(`editReminderAction-${reminderId}`);
+        const frequencyInput = document.getElementById(`editReminderFrequency-${reminderId}`);
+        
+        if (!actionSelect || !frequencyInput) return;
+        
+        const action = actionSelect.value.trim();
+        const frequency = parseInt(frequencyInput.value);
+        
+        if (!action || frequency < 0 || isNaN(frequency)) {
+            this.showNotification('Por favor, completa todos los campos correctamente', 'error');
+            return;
+        }
+        
+        // Actualizar recordatorio
+        reminder.action = action;
+        reminder.frequency = frequency;
+        
+        // Recalcular próxima fecha si es necesario
+        if (frequency === 0) {
+            // Si es 0 días, vence hoy
+            reminder.nextDue = new Date().toISOString().split('T')[0];
+        } else if (reminder.lastCompleted) {
+            const lastDate = new Date(reminder.lastCompleted + 'T00:00:00');
+            lastDate.setDate(lastDate.getDate() + frequency);
+            reminder.nextDue = lastDate.toISOString().split('T')[0];
+        } else {
+            // Si nunca se completó, recalcular desde hoy
+            const today = new Date();
+            today.setDate(today.getDate() + frequency);
+            reminder.nextDue = today.toISOString().split('T')[0];
+        }
+        
+        // Guardar cambios
+        const saved = await this.savePlantToFirebase(plant);
+        if (!saved) {
+            await this.savePlants();
+        }
+        
+        this.renderReminders();
+        this.showPlantDetails(plant);
+        this.showNotification('Recordatorio actualizado', 'success');
+    }
+    
+    // Eliminar recordatorio personalizado desde detalles
+    async deleteCustomReminder(plantId, reminderId) {
+        if (!confirm('¿Estás seguro de que quieres eliminar este recordatorio?')) {
+            return;
+        }
+        
+        const plant = this.plants.find(p => p.id === plantId);
+        if (!plant || !plant.customReminders) return;
+        
+        // Eliminar recordatorio
+        plant.customReminders = plant.customReminders.filter(r => r.id !== reminderId);
+        
+        // Guardar cambios
+        const saved = await this.savePlantToFirebase(plant);
+        if (!saved) {
+            await this.savePlants();
+        }
+        
+        this.renderReminders();
+        this.showPlantDetails(plant);
+        this.showNotification('Recordatorio eliminado', 'success');
+    }
+
     // Renderizado
     renderDashboard(plantsToAnalyze = null) {
         const dashboardContent = document.getElementById('dashboardContent');
         if (!dashboardContent) return;
+        
+        // Renderizar avisos después del dashboard
+        this.renderReminders();
 
         // Usar las plantas proporcionadas o todas las plantas
         const plants = plantsToAnalyze !== null ? plantsToAnalyze : this.plants;
@@ -2066,7 +2896,7 @@ class PlantManager {
                 const babyEndAngleRad = currentAngleRad + babyAngleRad;
                 const babyPathData = this.createDonutSlice(healthCenterX, healthCenterY, healthInnerRadius, healthRadius, currentAngleRad, babyEndAngleRad);
                 const babyTooltip = `Baby/Esqueje: ${Math.round(babyPercentage)}% (${babyOnlyPlants} planta${babyOnlyPlants !== 1 ? 's' : ''})`;
-                babyPathWithTooltip = `<path d="${babyPathData}" fill="rgba(255, 193, 7, 0.8)" data-tooltip="${babyTooltip}" data-segment="baby" style="cursor: pointer;" />`;
+                babyPathWithTooltip = `<path d="${babyPathData}" fill="rgba(255, 192, 203, 0.8)" data-tooltip="${babyTooltip}" data-segment="baby" style="cursor: pointer;" />`;
                 babyPath = babyPathData;
                 currentAngleRad = babyEndAngleRad;
             }
@@ -2203,7 +3033,7 @@ class PlantManager {
                                 <span>Mala salud: ${poorHealth}</span>
                             </div>
                             <div class="dashboard-compact-legend-item" onclick="plantManager.filterPlantsByBaby(true)" style="cursor: pointer;">
-                                <span class="dashboard-compact-color" style="background: rgba(255, 193, 7, 0.8);"></span>
+                                <span class="dashboard-compact-color" style="background: rgba(255, 192, 203, 0.8);"></span>
                                 <span>Baby/Esqueje: ${babyPlants}</span>
                             </div>
                         </div>
@@ -2504,7 +3334,7 @@ class PlantManager {
         });
         
         this.renderPlants(filtered);
-        this.updateDashboard(filtered);
+        this.renderReminders(); // Actualizar avisos
         
         // Actualizar búsqueda
         const searchInput = document.getElementById('searchInput');
@@ -2620,6 +3450,16 @@ class PlantManager {
                                 <img src="img/icons/warning.svg" alt="Mala salud" class="poor-health-icon">
                             </div>
                         ` : ''}
+                        ${this.needsWateringToday(plant) ? `
+                            <div class="watering-due-indicator" title="Necesita riego hoy">
+                                <img src="img/icons/water-drop.svg" alt="Riego debido" class="watering-due-icon">
+                            </div>
+                        ` : ''}
+                        ${this.hasCustomRemindersDueToday(plant) ? `
+                            <div class="custom-reminder-indicator" title="Tiene recordatorios personalizados para hoy">
+                                <img src="img/icons/notification.svg" alt="Recordatorios" class="custom-reminder-icon">
+                            </div>
+                        ` : ''}
                     </div>
                 </div>
                 <img src="${lastPhoto}" alt="${this.escapeHtml(plant.name)}" class="plant-card-image" 
@@ -2677,6 +3517,7 @@ class PlantManager {
                 await this.savePlants(); // Fallback
             }
             this.renderPlants();
+            this.renderReminders(); // Actualizar avisos después de regar
             this.showNotification('Riego registrado correctamente', 'success');
         }
     }
@@ -2718,6 +3559,7 @@ class PlantManager {
         }
         
         this.renderPlants();
+        this.renderReminders(); // Actualizar avisos
         this.showNotification('Riego añadido correctamente', 'success');
     }
 
@@ -2756,6 +3598,7 @@ class PlantManager {
         }
         
         this.renderPlants();
+        this.renderReminders(); // Actualizar avisos
         this.showNotification('Riego eliminado correctamente', 'success');
     }
 
@@ -2793,6 +3636,7 @@ class PlantManager {
         this.plants = this.plants.filter(p => p.id !== plantId);
         await this.savePlants();
         this.renderPlants();
+        this.renderReminders(); // Actualizar avisos después de eliminar
         this.showNotification('Planta eliminada', 'success');
         return true; // Retornar true si se eliminó correctamente
     }
@@ -2800,6 +3644,11 @@ class PlantManager {
     generateWateringCalendar(wateringDates, plantId) {
         // Mostrar calendario incluso si no hay riegos, para poder añadirlos
         const datesToShow = wateringDates || [];
+        const plant = this.plants.find(p => p.id === plantId);
+        
+        // Calcular días de riego futuros (gotas verdes)
+        const scheduledWateringDays = plant ? this.calculateWateringDays(plant, 180) : [];
+        const scheduledWateringSet = new Set(scheduledWateringDays);
 
         const now = new Date();
         const wateringDatesSet = new Set((datesToShow || []).map(date => {
@@ -2841,14 +3690,16 @@ class PlantManager {
             for (let day = 1; day <= daysInMonth; day++) {
                 const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
                 const isWatered = wateringDatesSet.has(dateStr);
+                const isScheduled = scheduledWateringSet.has(dateStr) && !isWatered; // Solo mostrar si no está regado
                 const isToday = day === now.getDate() && month === now.getMonth() && year === now.getFullYear();
                 
                 calendarHtml += `
                     <div class="calendar-day-small-wrapper" style="position: relative;">
-                        <div class="calendar-day-small ${isWatered ? 'watered' : ''} ${isToday ? 'today' : ''} ${!isWatered ? 'add-watering' : ''}" 
-                             title="${isWatered ? dateStr + ' - Click para eliminar' : dateStr + ' - Click para añadir riego'}"
-                             ${!isWatered ? `onclick="plantManager.addWateringDate('${plantId}', '${dateStr}')" style="cursor: pointer;"` : ''}>
+                        <div class="calendar-day-small ${isWatered ? 'watered' : ''} ${isScheduled ? 'scheduled-watering' : ''} ${isToday ? 'today' : ''} ${!isWatered && !isScheduled ? 'add-watering' : ''}" 
+                             title="${isWatered ? dateStr + ' - Regado' : isScheduled ? dateStr + ' - Día programado para regar' : dateStr + ' - Click para añadir riego'}"
+                             ${!isWatered && !isScheduled ? `onclick="plantManager.addWateringDate('${plantId}', '${dateStr}')" style="cursor: pointer;"` : ''}>
                             ${isWatered ? '<img src="img/icons/water-drop.svg" alt="Riego" class="watering-icon-small">' : ''}
+                            ${isScheduled ? '<img src="img/icons/water-drop.svg" alt="Riego programado" class="watering-icon-small scheduled-icon">' : ''}
                             <span class="day-number-small">${day}</span>
                         </div>
                         ${isWatered ? `
@@ -3114,11 +3965,51 @@ class PlantManager {
                         </div>
                     </div>
                     <div class="comment-text" id="comment-text-${commentId}">${this.escapeHtml(comment.text)}</div>
+                    ${comment.photos && comment.photos.length > 0 ? `
+                        <div class="comment-photos">
+                            ${comment.photos.map((photo, photoIndex) => `
+                                <div class="comment-photo-wrapper">
+                                    <img src="${photo}" alt="Foto del comentario" class="comment-photo" onclick="plantManager.openCommentPhotoLightbox('${plant.id}', '${commentId}', ${photoIndex})" 
+                                         onerror="this.style.display='none';">
+                                    <button class="comment-photo-delete-btn" onclick="event.stopPropagation(); plantManager.deleteCommentPhoto('${plant.id}', '${commentId}', ${photoIndex})" title="Eliminar foto">
+                                        <img src="img/icons/delete.svg" alt="Eliminar" class="comment-photo-delete-icon">
+                                    </button>
+                                </div>
+                            `).join('')}
+                        </div>
+                    ` : ''}
                     <div class="comment-edit-form hidden" id="comment-edit-${commentId}">
                         <textarea class="comment-edit-textarea" id="comment-edit-text-${commentId}">${this.escapeHtml(comment.text)}</textarea>
+                        <div id="comment-edit-photos-${commentId}" class="comment-edit-photos" style="margin-top: 10px; margin-bottom: 10px;">
+                            ${comment.photos && comment.photos.length > 0 ? `
+                                <div class="comment-photos-edit-label" style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 8px; font-weight: 500;">Fotos actuales:</div>
+                                <div class="comment-photos-edit-list" style="display: flex; flex-wrap: wrap; gap: 10px;">
+                                    ${comment.photos.map((photo, photoIndex) => `
+                                        <div class="comment-photo-edit-wrapper" data-photo-index="${photoIndex}" style="position: relative; width: 80px; height: 80px; border-radius: 8px; overflow: hidden; border: 2px solid rgba(255, 255, 255, 0.3);">
+                                            <img src="${photo}" alt="Foto" style="width: 100%; height: 100%; object-fit: cover;">
+                                            <button class="comment-photo-edit-delete" onclick="plantManager.removeCommentPhotoFromEdit('${commentId}', ${photoIndex})" title="Eliminar foto" style="position: absolute; top: 2px; right: 2px; background: rgba(220, 53, 69, 0.9); border: 1px solid rgba(255, 255, 255, 0.9); border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0;">
+                                                <img src="img/icons/delete.svg" alt="Eliminar" style="width: 14px; height: 14px; filter: brightness(0) invert(1);">
+                                            </button>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            ` : ''}
+                        </div>
+                        <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 10px;">
+                            <label for="commentEditPhotoInput-${commentId}" class="btn-secondary btn-small" style="cursor: pointer; margin: 0; display: inline-flex; align-items: center; gap: 6px;">
+                                <img src="img/icons/photo.svg" alt="Foto" class="btn-icon" style="width: 16px; height: 16px;"> Añadir Foto
+                            </label>
+                            <input type="file" id="commentEditPhotoInput-${commentId}" accept="image/*" multiple style="display: none;">
+                            <small style="color: var(--text-muted); flex: 1;">Puedes añadir más fotos</small>
+                        </div>
+                        <div id="comment-edit-photos-preview-${commentId}" class="comment-photos-preview" style="display: none; margin-bottom: 10px;"></div>
                         <div class="comment-edit-actions">
-                            <button class="btn-primary btn-small" onclick="plantManager.saveComment('${plant.id}', '${commentId}')">Guardar</button>
-                            <button class="btn-secondary btn-small" onclick="plantManager.cancelEditComment('${commentId}')">Cancelar</button>
+                            <button class="btn-primary btn-small" onclick="plantManager.saveComment('${plant.id}', '${commentId}')" title="Guardar">
+                                <img src="img/icons/save.svg" alt="Guardar" class="btn-icon"> Guardar
+                            </button>
+                            <button class="btn-secondary btn-small" onclick="plantManager.cancelEditComment('${plant.id}', '${commentId}')" title="Cancelar">
+                                <img src="img/icons/cancel.svg" alt="Cancelar" class="btn-icon"> Cancelar
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -3321,6 +4212,88 @@ class PlantManager {
                     </div>
                 </div>
 
+                <div class="modal-section custom-reminders-details-section">
+                    <h3 style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px;">
+                        <img src="img/icons/notification.svg" alt="Recordatorios" class="label-icon" style="width: 24px; height: 24px;">
+                        Recordatorios Personalizados
+                    </h3>
+                    <div id="customRemindersDetailsList-${plant.id}" class="custom-reminders-details-list">
+                        ${plant.customReminders && plant.customReminders.length > 0 ? plant.customReminders.map((reminder, index) => {
+                            const today = new Date().toISOString().split('T')[0];
+                            const todayDate = new Date(today + 'T00:00:00');
+                            const isDue = reminder.nextDue === today;
+                            const isOverdue = reminder.nextDue && new Date(reminder.nextDue + 'T00:00:00') < todayDate;
+                            const nextDueDate = reminder.nextDue ? new Date(reminder.nextDue + 'T00:00:00') : null;
+                            const formattedDate = nextDueDate ? this.formatDate(reminder.nextDue) : 'No programado';
+                            const daysOverdue = isOverdue ? Math.floor((todayDate - nextDueDate) / (1000 * 60 * 60 * 24)) : 0;
+                            
+                            return `
+                                <div class="custom-reminder-detail-item ${isDue ? 'due-today' : ''} ${isOverdue ? 'overdue' : ''}" data-reminder-id="${reminder.id}">
+                                    <div class="custom-reminder-detail-content">
+                                        <div class="custom-reminder-detail-header">
+                                            <span class="custom-reminder-action-name ${isOverdue ? 'overdue-name' : ''}">${this.escapeHtml(reminder.action)}</span>
+                                            <span class="custom-reminder-frequency-badge">Cada ${reminder.frequency} días</span>
+                                        </div>
+                                        <div class="custom-reminder-detail-info">
+                                            ${reminder.lastCompleted ? `
+                                                <span class="custom-reminder-last-completed">Último: ${this.formatDate(reminder.lastCompleted)}</span>
+                                            ` : ''}
+                                            <span class="custom-reminder-next-due ${isDue ? 'due-today-badge' : ''} ${isOverdue ? 'overdue-badge' : ''}">
+                                                ${isDue ? '🔔 Vence hoy' : isOverdue ? `⚠️ Vencido hace ${daysOverdue} ${daysOverdue === 1 ? 'día' : 'días'}` : `Próximo: ${formattedDate}`}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div class="custom-reminder-detail-actions">
+                                        ${isDue || isOverdue ? `
+                                            <button class="btn-action btn-small ${isOverdue ? 'overdue-action-btn' : ''}" onclick="plantManager.completeCustomReminder('${plant.id}', '${reminder.id}')" title="Marcar como completado">
+                                                <img src="img/icons/ok.svg" alt="Completar" class="btn-action-icon">
+                                            </button>
+                                        ` : ''}
+                                        <button class="btn-action btn-edit-action btn-small" onclick="plantManager.editCustomReminder('${plant.id}', '${reminder.id}')" title="Editar recordatorio">
+                                            <img src="img/icons/edit.svg" alt="Editar" class="btn-action-icon">
+                                        </button>
+                                        <button class="btn-action btn-delete-action btn-small" onclick="plantManager.deleteCustomReminder('${plant.id}', '${reminder.id}')" title="Eliminar recordatorio">
+                                            <img src="img/icons/delete.svg" alt="Eliminar" class="btn-action-icon">
+                                        </button>
+                                    </div>
+                                </div>
+                            `;
+                        }).join('') : '<p style="color: var(--text-muted); margin-bottom: 15px;">No hay recordatorios personalizados.</p>'}
+                    </div>
+                    <div class="custom-reminder-add-form" id="customReminderAddForm-${plant.id}" style="display: none; margin-top: 15px; padding: 15px; background: rgba(10, 31, 10, 0.3); border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.1);">
+                        <div class="form-group" style="margin-bottom: 12px;">
+                            <label style="display: block; margin-bottom: 6px; color: var(--text-light); font-weight: 500;">Acción</label>
+                            <select id="newReminderAction-${plant.id}" class="custom-reminder-action-select" style="width: 100%; padding: 10px; border: 1px solid rgba(255, 255, 255, 0.8); border-radius: 6px; background: rgba(10, 31, 10, 0.7); color: var(--text-light); font-size: 0.9rem;">
+                                <option value="">Seleccionar...</option>
+                                <option value="Cambiar sustrato">Cambiar sustrato</option>
+                                <option value="Añadir abono">Añadir abono</option>
+                                <option value="Podar">Podar</option>
+                                <option value="Limpiar hojas">Limpiar hojas</option>
+                                <option value="Rotar maceta">Rotar maceta</option>
+                                <option value="Trasplantar">Trasplantar</option>
+                                <option value="Fertilizar">Fertilizar</option>
+                                <option value="Revisar raíces">Revisar raíces</option>
+                                <option value="Aplicar tratamiento">Aplicar tratamiento</option>
+                                <option value="Otro">Otro</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 12px;">
+                            <label style="display: block; margin-bottom: 6px; color: var(--text-light); font-weight: 500;">Frecuencia (días)</label>
+                            <input type="number" id="newReminderFrequency-${plant.id}" class="custom-reminder-frequency-input" min="0" placeholder="Ej: 30 (0 para probar)" style="width: 100%; padding: 10px; border: 1px solid rgba(255, 255, 255, 0.8); border-radius: 6px; background: rgba(10, 31, 10, 0.7); color: var(--text-light); font-size: 0.9rem;">
+                        </div>
+                        <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                            <button class="btn-secondary btn-small" onclick="plantManager.cancelAddCustomReminder('${plant.id}')">
+                                <img src="img/icons/cancel.svg" alt="Cancelar" class="btn-icon"> Cancelar
+                            </button>
+                            <button class="btn-primary btn-small" onclick="plantManager.saveNewCustomReminder('${plant.id}')">
+                                <img src="img/icons/save.svg" alt="Guardar" class="btn-icon"> Guardar
+                            </button>
+                        </div>
+                    </div>
+                    <button class="btn-secondary btn-small" onclick="plantManager.showAddCustomReminderForm('${plant.id}')" id="showAddReminderBtn-${plant.id}" style="margin-top: 10px;">
+                        <img src="img/icons/plus.svg" alt="Añadir" class="btn-icon"> Añadir Recordatorio
+                    </button>
+                </div>
 
                 <div class="modal-section comments-section">
                     <h3>Comentarios</h3>
@@ -3329,7 +4302,15 @@ class PlantManager {
                     </div>
                     <div class="comment-form">
                         <div id="newCommentContainer" class="hidden">
-                            <textarea id="newComment" rows="3" placeholder="Agregar un comentario sobre esta planta..." style="margin-bottom: 0;"></textarea>
+                            <textarea id="newComment" rows="3" placeholder="Agregar un comentario sobre esta planta..." style="margin-bottom: 10px;"></textarea>
+                            <div id="commentPhotosPreview" class="comment-photos-preview" style="display: none; margin-bottom: 10px;"></div>
+                            <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 10px;">
+                                <label for="commentPhotoInput" class="btn-secondary btn-small" style="cursor: pointer; margin: 0; display: inline-flex; align-items: center; gap: 6px;">
+                                    <img src="img/icons/photo.svg" alt="Foto" class="btn-icon" style="width: 16px; height: 16px;"> Añadir Foto
+                                </label>
+                                <input type="file" id="commentPhotoInput" accept="image/*" multiple style="display: none;">
+                                <small style="color: var(--text-muted); flex: 1;">Puedes añadir múltiples fotos</small>
+                            </div>
                             <div style="display: flex; justify-content: flex-end; margin-top: 0;">
                                 <button class="btn-save-comment" onclick="plantManager.addComment('${plant.id}')" title="Guardar Comentario">
                                     <img src="img/icons/save.svg" alt="Guardar" class="btn-save-comment-icon"> Guardar
@@ -3545,21 +4526,125 @@ class PlantManager {
                 if (textarea) {
                     textarea.focus();
                 }
+                
+                // Configurar el input de fotos para comentarios
+                const commentPhotoInput = document.getElementById('commentPhotoInput');
+                if (commentPhotoInput) {
+                    commentPhotoInput.onchange = (e) => this.handleCommentPhotosSelect(e);
+                }
             } else {
                 container.classList.add('hidden');
-                // Limpiar el textarea al ocultar
+                // Limpiar el textarea y las fotos al ocultar
                 const textarea = document.getElementById('newComment');
                 if (textarea) {
                     textarea.value = '';
                 }
+                this.clearCommentPhotosPreview();
             }
+        }
+    }
+    
+    handleCommentPhotosSelect(event) {
+        const files = Array.from(event.target.files);
+        if (files.length === 0) return;
+        
+        const previewContainer = document.getElementById('commentPhotosPreview');
+        if (!previewContainer) return;
+        
+        previewContainer.innerHTML = '';
+        previewContainer.style.display = 'flex';
+        previewContainer.style.flexWrap = 'wrap';
+        previewContainer.style.gap = '10px';
+        
+        files.forEach((file, index) => {
+            if (!file.type.startsWith('image/')) {
+                this.showNotification('Solo se permiten archivos de imagen', 'error');
+                return;
+            }
+            
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const photoWrapper = document.createElement('div');
+                photoWrapper.className = 'comment-photo-preview-wrapper';
+                photoWrapper.style.cssText = `
+                    position: relative;
+                    width: 80px;
+                    height: 80px;
+                    border-radius: 8px;
+                    overflow: hidden;
+                    border: 2px solid rgba(255, 255, 255, 0.3);
+                `;
+                
+                const img = document.createElement('img');
+                img.src = e.target.result;
+                img.style.cssText = 'width: 100%; height: 100%; object-fit: cover;';
+                
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'comment-photo-preview-delete';
+                deleteBtn.style.cssText = `
+                    position: absolute;
+                    top: 2px;
+                    right: 2px;
+                    background: rgba(220, 53, 69, 0.9);
+                    border: 1px solid rgba(255, 255, 255, 0.9);
+                    border-radius: 50%;
+                    width: 24px;
+                    height: 24px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    cursor: pointer;
+                    padding: 0;
+                `;
+                deleteBtn.onclick = () => {
+                    photoWrapper.remove();
+                    // Actualizar el input file
+                    const input = document.getElementById('commentPhotoInput');
+                    if (input) {
+                        const dt = new DataTransfer();
+                        Array.from(input.files).forEach((f, i) => {
+                            if (i !== index) dt.items.add(f);
+                        });
+                        input.files = dt.files;
+                    }
+                    // Si no quedan fotos, ocultar el contenedor
+                    if (previewContainer.children.length === 0) {
+                        previewContainer.style.display = 'none';
+                    }
+                };
+                
+                const deleteIcon = document.createElement('img');
+                deleteIcon.src = 'img/icons/delete.svg';
+                deleteIcon.style.cssText = 'width: 14px; height: 14px; filter: brightness(0) invert(1);';
+                deleteBtn.appendChild(deleteIcon);
+                
+                photoWrapper.appendChild(img);
+                photoWrapper.appendChild(deleteBtn);
+                previewContainer.appendChild(photoWrapper);
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+    
+    clearCommentPhotosPreview() {
+        const previewContainer = document.getElementById('commentPhotosPreview');
+        if (previewContainer) {
+            previewContainer.innerHTML = '';
+            previewContainer.style.display = 'none';
+        }
+        const input = document.getElementById('commentPhotoInput');
+        if (input) {
+            input.value = '';
         }
     }
 
     async addComment(plantId) {
         const commentText = document.getElementById('newComment').value.trim();
-        if (!commentText) {
-            this.showNotification('Por favor, escribe un comentario', 'error');
+        const commentPhotoInput = document.getElementById('commentPhotoInput');
+        
+        // Permitir comentario sin texto si hay fotos
+        if (!commentText && (!commentPhotoInput || !commentPhotoInput.files || commentPhotoInput.files.length === 0)) {
+            this.showNotification('Por favor, escribe un comentario o añade al menos una foto', 'error');
             return;
         }
 
@@ -3573,14 +4658,55 @@ class PlantManager {
                 if (!plant.comments) {
                     plant.comments = [];
                 }
-                plant.comments.push({
+                
+                // Subir fotos si las hay
+                let commentPhotos = [];
+                if (commentPhotoInput && commentPhotoInput.files && commentPhotoInput.files.length > 0) {
+                    const files = Array.from(commentPhotoInput.files);
+                    for (const file of files) {
+                        try {
+                            let photoUrl;
+                            if (this.useFirebase && this.storage) {
+                                // Subir a Firebase Storage con ruta específica para comentarios
+                                const timestamp = Date.now();
+                                const fileName = `comments/${plantId}/${timestamp}_${file.name}`;
+                                const storageRef = this.storage.ref().child(fileName);
+                                await storageRef.put(file);
+                                photoUrl = await storageRef.getDownloadURL();
+                            } else {
+                                // Usar base64 si no hay Firebase
+                                photoUrl = await new Promise((resolve) => {
+                                    const reader = new FileReader();
+                                    reader.onload = (e) => resolve(e.target.result);
+                                    reader.readAsDataURL(file);
+                                });
+                            }
+                            commentPhotos.push(photoUrl);
+                        } catch (error) {
+                            console.error('Error subiendo foto del comentario:', error);
+                            this.showNotification('Error subiendo algunas fotos', 'error');
+                        }
+                    }
+                }
+                
+                const newComment = {
                     id: `${plantId}-comment-${Date.now()}`,
                     date: new Date().toISOString(),
-                    text: commentText
-                });
-                await this.savePlants();
+                    text: commentText || '',
+                    photos: commentPhotos.length > 0 ? commentPhotos : undefined
+                };
+                
+                plant.comments.push(newComment);
+                
+                // Guardar individualmente en Firebase
+                const saved = await this.savePlantToFirebase(plant);
+                if (!saved) {
+                    await this.savePlants(); // Fallback
+                }
+                
                 this.showPlantDetails(plant);
                 document.getElementById('newComment').value = '';
+                this.clearCommentPhotosPreview();
                 const container = document.getElementById('newCommentContainer');
                 if (container) {
                     container.classList.add('hidden');
@@ -3604,18 +4730,145 @@ class PlantManager {
         if (commentTextDiv && commentEditForm) {
             commentTextDiv.style.display = 'none';
             commentEditForm.classList.remove('hidden');
+            
+            // Configurar el input de fotos para edición
+            const editPhotoInput = document.getElementById(`commentEditPhotoInput-${commentId}`);
+            if (editPhotoInput) {
+                editPhotoInput.onchange = (e) => this.handleCommentEditPhotosSelect(e, commentId);
+            }
+            
+            // Guardar referencia a las fotos originales para poder restaurarlas si se cancela
+            const plant = this.plants.find(p => p.id === plantId);
+            if (plant && plant.comments) {
+                const comment = plant.comments.find(c => c.id === commentId);
+                if (comment) {
+                    // Guardar estado original en el elemento
+                    commentEditForm.dataset.originalPhotos = JSON.stringify(comment.photos || []);
+                }
+            }
         }
+    }
+    
+    handleCommentEditPhotosSelect(event, commentId) {
+        const files = Array.from(event.target.files);
+        if (files.length === 0) return;
+        
+        const previewContainer = document.getElementById(`comment-edit-photos-preview-${commentId}`);
+        if (!previewContainer) return;
+        
+        // Limpiar preview anterior si existe
+        previewContainer.innerHTML = '';
+        previewContainer.style.display = 'flex';
+        previewContainer.style.flexWrap = 'wrap';
+        previewContainer.style.gap = '10px';
+        
+        files.forEach((file, index) => {
+            if (!file.type.startsWith('image/')) {
+                this.showNotification('Solo se permiten archivos de imagen', 'error');
+                return;
+            }
+            
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const photoWrapper = document.createElement('div');
+                photoWrapper.className = 'comment-photo-preview-wrapper';
+                photoWrapper.style.cssText = `
+                    position: relative;
+                    width: 80px;
+                    height: 80px;
+                    border-radius: 8px;
+                    overflow: hidden;
+                    border: 2px solid rgba(255, 255, 255, 0.3);
+                `;
+                
+                const img = document.createElement('img');
+                img.src = e.target.result;
+                img.style.cssText = 'width: 100%; height: 100%; object-fit: cover;';
+                
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'comment-photo-preview-delete';
+                deleteBtn.style.cssText = `
+                    position: absolute;
+                    top: 2px;
+                    right: 2px;
+                    background: rgba(220, 53, 69, 0.9);
+                    border: 1px solid rgba(255, 255, 255, 0.9);
+                    border-radius: 50%;
+                    width: 24px;
+                    height: 24px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    cursor: pointer;
+                    padding: 0;
+                `;
+                deleteBtn.onclick = () => {
+                    photoWrapper.remove();
+                    // Actualizar el input file
+                    const input = document.getElementById(`commentEditPhotoInput-${commentId}`);
+                    if (input) {
+                        const dt = new DataTransfer();
+                        Array.from(input.files).forEach((f, i) => {
+                            if (i !== index) dt.items.add(f);
+                        });
+                        input.files = dt.files;
+                    }
+                    // Si no quedan fotos nuevas, ocultar el contenedor
+                    if (previewContainer.children.length === 0) {
+                        previewContainer.style.display = 'none';
+                    }
+                };
+                
+                const deleteIcon = document.createElement('img');
+                deleteIcon.src = 'img/icons/delete.svg';
+                deleteIcon.style.cssText = 'width: 14px; height: 14px; filter: brightness(0) invert(1);';
+                deleteBtn.appendChild(deleteIcon);
+                
+                photoWrapper.appendChild(img);
+                photoWrapper.appendChild(deleteBtn);
+                previewContainer.appendChild(photoWrapper);
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+    
+    removeCommentPhotoFromEdit(commentId, photoIndex) {
+        const editForm = document.getElementById(`comment-edit-${commentId}`);
+        if (!editForm) return;
+        
+        const photoWrapper = editForm.querySelector(`[data-photo-index="${photoIndex}"]`);
+        if (photoWrapper) {
+            photoWrapper.remove();
+        }
+        
+        // Marcar que esta foto debe eliminarse al guardar
+        if (!editForm.dataset.photosToDelete) {
+            editForm.dataset.photosToDelete = JSON.stringify([]);
+        }
+        const photosToDelete = JSON.parse(editForm.dataset.photosToDelete);
+        photosToDelete.push(photoIndex);
+        editForm.dataset.photosToDelete = JSON.stringify(photosToDelete);
     }
 
     async saveComment(plantId, commentId) {
         const plant = this.plants.find(p => p.id === plantId);
         if (!plant || !plant.comments) return;
 
+        const editForm = document.getElementById(`comment-edit-${commentId}`);
         const editTextarea = document.getElementById(`comment-edit-text-${commentId}`);
+        const editPhotoInput = document.getElementById(`commentEditPhotoInput-${commentId}`);
+        
+        if (!editForm || !editTextarea) return;
+        
         const newText = editTextarea.value.trim();
         
-        if (!newText) {
-            this.showNotification('El comentario no puede estar vacío', 'error');
+        // Permitir comentario sin texto si hay fotos
+        const hasExistingPhotos = editForm.querySelector('.comment-photos-edit-list') && 
+                                   editForm.querySelector('.comment-photos-edit-list').children.length > 0;
+        const hasNewPhotos = editPhotoInput && editPhotoInput.files && editPhotoInput.files.length > 0;
+        
+        if (!newText && !hasExistingPhotos && !hasNewPhotos) {
+            this.showNotification('El comentario debe tener texto o al menos una foto', 'error');
             return;
         }
 
@@ -3628,6 +4881,69 @@ class PlantManager {
             if (comment) {
                 comment.text = newText;
                 comment.editedAt = new Date().toISOString();
+                
+                // Manejar fotos eliminadas
+                const photosToDelete = editForm.dataset.photosToDelete ? 
+                    JSON.parse(editForm.dataset.photosToDelete) : [];
+                
+                // Eliminar fotos marcadas para eliminar (en orden inverso para mantener índices)
+                if (photosToDelete.length > 0 && comment.photos) {
+                    const photosToDeleteSorted = [...photosToDelete].sort((a, b) => b - a);
+                    for (const photoIndex of photosToDeleteSorted) {
+                        const photoUrl = comment.photos[photoIndex];
+                        
+                        // Eliminar de Firebase Storage si es una URL de Firebase
+                        if (photoUrl && photoUrl.includes('firebasestorage.googleapis.com') && this.useFirebase && this.storage) {
+                            try {
+                                const imageRef = this.storage.refFromURL(photoUrl);
+                                await imageRef.delete();
+                                console.log('✅ Foto del comentario eliminada de Storage');
+                            } catch (error) {
+                                console.warn('⚠️ No se pudo eliminar la foto del comentario:', error);
+                            }
+                        }
+                        
+                        comment.photos.splice(photoIndex, 1);
+                    }
+                    
+                    if (comment.photos.length === 0) {
+                        delete comment.photos;
+                    }
+                }
+                
+                // Subir nuevas fotos si las hay
+                if (editPhotoInput && editPhotoInput.files && editPhotoInput.files.length > 0) {
+                    const files = Array.from(editPhotoInput.files);
+                    if (!comment.photos) {
+                        comment.photos = [];
+                    }
+                    
+                    for (const file of files) {
+                        try {
+                            let photoUrl;
+                            if (this.useFirebase && this.storage) {
+                                // Subir a Firebase Storage con ruta específica para comentarios
+                                const timestamp = Date.now();
+                                const fileName = `comments/${plantId}/${timestamp}_${file.name}`;
+                                const storageRef = this.storage.ref().child(fileName);
+                                await storageRef.put(file);
+                                photoUrl = await storageRef.getDownloadURL();
+                            } else {
+                                // Usar base64 si no hay Firebase
+                                photoUrl = await new Promise((resolve) => {
+                                    const reader = new FileReader();
+                                    reader.onload = (e) => resolve(e.target.result);
+                                    reader.readAsDataURL(file);
+                                });
+                            }
+                            comment.photos.push(photoUrl);
+                        } catch (error) {
+                            console.error('Error subiendo foto del comentario:', error);
+                            this.showNotification('Error subiendo algunas fotos', 'error');
+                        }
+                    }
+                }
+                
                 // Guardar individualmente en Firebase
                 const saved = await this.savePlantToFirebase(plant);
                 if (!saved) {
@@ -3646,11 +4962,27 @@ class PlantManager {
         }
     }
 
-    cancelEditComment(commentId) {
+    cancelEditComment(plantId, commentId) {
         const commentTextDiv = document.getElementById(`comment-text-${commentId}`);
         const commentEditForm = document.getElementById(`comment-edit-${commentId}`);
         
         if (commentTextDiv && commentEditForm) {
+            // Limpiar preview de fotos nuevas
+            const previewContainer = document.getElementById(`comment-edit-photos-preview-${commentId}`);
+            if (previewContainer) {
+                previewContainer.innerHTML = '';
+                previewContainer.style.display = 'none';
+            }
+            
+            // Limpiar input de fotos
+            const editPhotoInput = document.getElementById(`commentEditPhotoInput-${commentId}`);
+            if (editPhotoInput) {
+                editPhotoInput.value = '';
+            }
+            
+            // Limpiar datos temporales
+            delete commentEditForm.dataset.photosToDelete;
+            
             commentTextDiv.style.display = 'block';
             commentEditForm.classList.add('hidden');
         }
@@ -3663,6 +4995,23 @@ class PlantManager {
 
         const plant = this.plants.find(p => p.id === plantId);
         if (plant && plant.comments) {
+            const comment = plant.comments.find(c => c.id === commentId);
+            
+            // Eliminar fotos del comentario de Firebase Storage si existen
+            if (comment && comment.photos && comment.photos.length > 0 && this.useFirebase && this.storage) {
+                for (const photoUrl of comment.photos) {
+                    if (photoUrl && photoUrl.includes('firebasestorage.googleapis.com')) {
+                        try {
+                            const imageRef = this.storage.refFromURL(photoUrl);
+                            await imageRef.delete();
+                            console.log('✅ Foto del comentario eliminada de Storage');
+                        } catch (error) {
+                            console.warn('⚠️ No se pudo eliminar la foto del comentario:', error);
+                        }
+                    }
+                }
+            }
+            
             plant.comments = plant.comments.filter(c => c.id !== commentId);
             // Guardar individualmente en Firebase
             const saved = await this.savePlantToFirebase(plant);
@@ -3671,6 +5020,129 @@ class PlantManager {
             }
             this.showPlantDetails(plant);
             this.showNotification('Comentario eliminado', 'success');
+        }
+    }
+    
+    async deleteCommentPhoto(plantId, commentId, photoIndex) {
+        if (!confirm('¿Estás seguro de que quieres eliminar esta foto del comentario?')) {
+            return;
+        }
+
+        const plant = this.plants.find(p => p.id === plantId);
+        if (!plant || !plant.comments) return;
+
+        const comment = plant.comments.find(c => c.id === commentId);
+        if (!comment || !comment.photos || photoIndex >= comment.photos.length) return;
+
+        try {
+            const photoUrl = comment.photos[photoIndex];
+            
+            // Eliminar de Firebase Storage si es una URL de Firebase
+            if (photoUrl && photoUrl.includes('firebasestorage.googleapis.com') && this.useFirebase && this.storage) {
+                try {
+                    const imageRef = this.storage.refFromURL(photoUrl);
+                    await imageRef.delete();
+                    console.log('✅ Foto del comentario eliminada de Storage');
+                } catch (error) {
+                    console.warn('⚠️ No se pudo eliminar la foto del comentario:', error);
+                }
+            }
+            
+            // Eliminar del array
+            comment.photos.splice(photoIndex, 1);
+            if (comment.photos.length === 0) {
+                delete comment.photos;
+            }
+            
+            // Guardar cambios
+            const saved = await this.savePlantToFirebase(plant);
+            if (!saved) {
+                await this.savePlants(); // Fallback
+            }
+            
+            this.showPlantDetails(plant);
+            this.showNotification('Foto eliminada del comentario', 'success');
+        } catch (error) {
+            console.error('Error eliminando foto del comentario:', error);
+            this.showNotification('Error eliminando foto', 'error');
+        }
+    }
+    
+    openCommentPhotoLightbox(plantId, commentId, photoIndex) {
+        const plant = this.plants.find(p => p.id === plantId);
+        if (!plant || !plant.comments) return;
+        
+        const comment = plant.comments.find(c => c.id === commentId);
+        if (!comment || !comment.photos || photoIndex >= comment.photos.length) return;
+        
+        // Guardar las fotos del comentario para navegación
+        this.lightboxCommentPhotos = comment.photos;
+        this.lightboxPhotoIndex = photoIndex;
+        this.lightboxPlantId = plantId;
+        
+        // Crear o actualizar el lightbox
+        let lightbox = document.getElementById('photoLightboxModal');
+        if (!lightbox) {
+            const lightboxHtml = `
+                <div id="photoLightboxModal" class="modal hidden">
+                    <div class="lightbox-container">
+                        <span class="close-modal" onclick="document.getElementById('photoLightboxModal').classList.add('hidden')" style="color: white; font-size: 3rem; z-index: 1001;">&times;</span>
+                        <button class="lightbox-nav prev" onclick="event.stopPropagation(); plantManager.changeCommentLightboxPhoto('prev')">‹</button>
+                        <button class="lightbox-nav next" onclick="event.stopPropagation(); plantManager.changeCommentLightboxPhoto('next')">›</button>
+                        <img id="lightboxImage" src="" alt="Foto" class="lightbox-image">
+                        <div class="lightbox-info">
+                            <span id="lightboxPhotoCount"></span>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.insertAdjacentHTML('beforeend', lightboxHtml);
+            lightbox = document.getElementById('photoLightboxModal');
+        }
+        
+        const lightboxImage = document.getElementById('lightboxImage');
+        const lightboxInfo = document.getElementById('lightboxPhotoCount');
+        const prevBtn = lightbox.querySelector('.lightbox-nav.prev');
+        const nextBtn = lightbox.querySelector('.lightbox-nav.next');
+        
+        if (lightboxImage) {
+            lightboxImage.src = comment.photos[photoIndex];
+        }
+        if (lightboxInfo) {
+            lightboxInfo.textContent = `${photoIndex + 1} / ${comment.photos.length}`;
+        }
+        
+        // Configurar navegación
+        if (prevBtn) {
+            prevBtn.style.display = comment.photos.length > 1 ? 'flex' : 'none';
+        }
+        if (nextBtn) {
+            nextBtn.style.display = comment.photos.length > 1 ? 'flex' : 'none';
+        }
+        
+        lightbox.classList.remove('hidden');
+    }
+    
+    changeCommentLightboxPhoto(direction) {
+        if (!this.lightboxCommentPhotos || this.lightboxCommentPhotos.length === 0) return;
+        
+        let newIndex = this.lightboxPhotoIndex;
+        if (direction === 'prev') {
+            newIndex = newIndex > 0 ? newIndex - 1 : this.lightboxCommentPhotos.length - 1;
+        } else if (direction === 'next') {
+            newIndex = newIndex < this.lightboxCommentPhotos.length - 1 ? newIndex + 1 : 0;
+        }
+        
+        this.lightboxPhotoIndex = newIndex;
+        
+        const lightboxImage = document.getElementById('lightboxImage');
+        const lightboxInfo = document.getElementById('lightboxPhotoCount');
+        
+        if (lightboxImage) {
+            lightboxImage.src = this.lightboxCommentPhotos[newIndex];
+        }
+        if (lightboxInfo) {
+            lightboxInfo.textContent = `${newIndex + 1} / ${this.lightboxCommentPhotos.length}`;
         }
     }
 
@@ -3722,7 +5194,7 @@ class PlantManager {
             return normalized.baby === isBaby;
         });
         this.renderPlants(filtered);
-        this.updateDashboard(filtered);
+        this.renderReminders(); // Actualizar avisos
         
         // Actualizar búsqueda
         const searchInput = document.getElementById('searchInput');

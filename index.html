@@ -56,14 +56,32 @@
         <header class="glass-panel">
             <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; margin: 0; padding: 0;">
                 <img src="img/My Green Diary Logo.png" alt="My Green Diary" class="header-logo">
-                <button id="changeBgBtn" class="btn-action" title="Cambiar fondo de pantalla">
-                    <img src="img/icons/bg-change.svg" alt="Fondo" class="btn-action-icon">
-                </button>
+                <div style="display: flex; gap: 10px;">
+                    <button id="changeFontBtn" class="btn-action" title="Cambiar fuente">
+                        <img src="img/icons/font.svg" alt="Fuente" class="btn-action-icon">
+                    </button>
+                    <button id="changeBgBtn" class="btn-action" title="Cambiar fondo de pantalla">
+                        <img src="img/icons/bg-change.svg" alt="Fondo" class="btn-action-icon">
+                    </button>
+                </div>
             </div>
         </header>
 
+        <!-- Avisos de Riego y Recordatorios -->
+        <section id="remindersSection" class="glass-panel reminders-section" style="display: none;">
+            <div class="reminders-header">
+                <h2 style="display: flex; align-items: center; gap: 10px; margin: 0;">
+                    <img src="img/icons/warning.svg" alt="Avisos" class="label-icon" style="width: 24px; height: 24px;">
+                    Avisos de Hoy
+                </h2>
+            </div>
+            <div id="remindersContent">
+                <!-- Se renderizará dinámicamente -->
+            </div>
+        </section>
+
         <!-- Dashboard de Resumen -->
-        <section id="dashboardSection" class="glass-panel dashboard-section">
+        <section id="dashboardSection" class="glass-panel dashboard-section collapsed">
             <div class="dashboard-header">
                 <h2 style="display: flex; align-items: center; gap: 10px; margin: 0;">
                     <img src="img/icons/statistics.svg" alt="Estadísticas" class="label-icon" style="width: 24px; height: 24px;">
@@ -351,6 +369,18 @@
                         </label>
                     </div>
 
+                    <div class="form-group">
+                        <label>
+                            <img src="img/icons/notification.svg" alt="Recordatorios" class="label-icon"> Recordatorios Personalizados
+                        </label>
+                        <div id="customRemindersList" class="custom-reminders-list">
+                            <!-- Se renderizará dinámicamente -->
+                        </div>
+                        <button type="button" id="addCustomReminderBtn" class="btn-secondary btn-small" style="margin-top: 10px;">
+                            <img src="img/icons/plus.svg" alt="Añadir" class="btn-icon"> Añadir Recordatorio
+                        </button>
+                    </div>
+
                     <div class="form-actions">
                         <button type="submit" class="btn-primary">
                             <img src="img/icons/save.svg" alt="Guardar" class="btn-icon"> Guardar Planta
@@ -378,6 +408,61 @@
             <div class="modal-content glass-panel substrate-legend-modal-content">
                 <h2 style="color: var(--light-green); margin-bottom: 20px;">Leyenda de Sustratos</h2>
                 <div id="substrateLegendList" class="substrate-legend-list"></div>
+            </div>
+        </div>
+
+        <!-- Modal para cambiar fuente -->
+        <div id="fontModal" class="modal hidden">
+            <div class="modal-content glass-panel bg-modal-content">
+                <span class="close-modal close-font-modal">&times;</span>
+                <h2 style="margin-bottom: 20px; color: var(--light-green);">🔤 Cambiar Fuente</h2>
+                <div class="font-options">
+                    <div class="font-option" data-font="'Segoe UI', Tahoma, Geneva, Verdana, sans-serif">
+                        <div class="font-preview" style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">Segoe UI</div>
+                        <p>Segoe UI (Por defecto)</p>
+                        <span class="font-check">✓</span>
+                    </div>
+                    <div class="font-option" data-font="'Arial', sans-serif">
+                        <div class="font-preview" style="font-family: 'Arial', sans-serif;">Arial</div>
+                        <p>Arial</p>
+                        <span class="font-check">✓</span>
+                    </div>
+                    <div class="font-option" data-font="'Helvetica', sans-serif">
+                        <div class="font-preview" style="font-family: 'Helvetica', sans-serif;">Helvetica</div>
+                        <p>Helvetica</p>
+                        <span class="font-check">✓</span>
+                    </div>
+                    <div class="font-option" data-font="'Georgia', serif">
+                        <div class="font-preview" style="font-family: 'Georgia', serif;">Georgia</div>
+                        <p>Georgia</p>
+                        <span class="font-check">✓</span>
+                    </div>
+                    <div class="font-option" data-font="'Times New Roman', serif">
+                        <div class="font-preview" style="font-family: 'Times New Roman', serif;">Times New Roman</div>
+                        <p>Times New Roman</p>
+                        <span class="font-check">✓</span>
+                    </div>
+                    <div class="font-option" data-font="'Courier New', monospace">
+                        <div class="font-preview" style="font-family: 'Courier New', monospace;">Courier New</div>
+                        <p>Courier New</p>
+                        <span class="font-check">✓</span>
+                    </div>
+                    <div class="font-option" data-font="'Verdana', sans-serif">
+                        <div class="font-preview" style="font-family: 'Verdana', sans-serif;">Verdana</div>
+                        <p>Verdana</p>
+                        <span class="font-check">✓</span>
+                    </div>
+                    <div class="font-option" data-font="'Trebuchet MS', sans-serif">
+                        <div class="font-preview" style="font-family: 'Trebuchet MS', sans-serif;">Trebuchet MS</div>
+                        <p>Trebuchet MS</p>
+                        <span class="font-check">✓</span>
+                    </div>
+                    <div class="font-option" data-font="'Comic Sans MS', cursive">
+                        <div class="font-preview" style="font-family: 'Comic Sans MS', cursive;">Comic Sans MS</div>
+                        <p>Comic Sans MS</p>
+                        <span class="font-check">✓</span>
+                    </div>
+                </div>
             </div>
         </div>
 
