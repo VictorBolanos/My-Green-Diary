@@ -68,11 +68,14 @@ body {
 header {
     margin-bottom: 30px;
     padding: 20px;
+    overflow: hidden;
 }
 
 header > div:first-child {
     margin: 0;
     padding: 0;
+    width: 100%;
+    box-sizing: border-box;
 }
 
 .header-logo {
@@ -81,6 +84,8 @@ header > div:first-child {
     margin: 0;
     padding: 0;
     display: block;
+    max-width: 100%;
+    object-fit: contain;
 }
 
 .subtitle {
@@ -161,44 +166,156 @@ header > div:first-child {
 }
 
 @media (max-width: 768px) {
-    .plants-grid {
-        grid-template-columns: repeat(2, 1fr);
+    /* Modo Kanban: 1 planta por fila */
+    .plants-grid:not(.compact-view) {
+        grid-template-columns: 1fr;
         gap: 15px;
     }
     
+    /* Modo Lista: estructura de 2 columnas en móvil */
     .plants-grid.compact-view {
         display: flex;
         flex-direction: column;
-        gap: 10px;
+        gap: 8px;
+    }
+    
+    /* Ocultar vista desktop en móvil */
+    .plant-list-desktop {
+        display: none !important;
+    }
+    
+    /* Mostrar vista móvil */
+    .plant-list-mobile {
+        display: block !important;
     }
     
     .plant-list-row {
         flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
+        padding: 10px 12px;
+        min-height: auto;
+    }
+    
+    /* Parte principal: 2 columnas */
+    .plant-list-main {
+        display: flex;
+        flex-direction: row;
         align-items: flex-start;
         gap: 12px;
-        padding: 12px 15px;
+        width: 100%;
+        box-sizing: border-box;
     }
     
-    .plant-list-name {
-        flex: 1;
+    /* Columna izquierda: nombre y botones - 50% del ancho */
+    .plant-list-col-left {
+        flex: 0 0 50%;
+        width: 50%;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        min-width: 0;
+        box-sizing: border-box;
+    }
+    
+    .plant-list-name-only {
         width: 100%;
     }
     
-    .plant-list-info {
+    .plant-list-mobile .plant-list-title {
+        font-size: 0.95rem;
+        margin: 0;
+        word-break: break-word;
+        word-wrap: break-word;
+        overflow-wrap: break-word;
+        line-height: 1.2;
+        color: var(--light-green);
+    }
+    
+    /* Botones justo debajo del nombre */
+    .plant-list-col-left .plant-list-actions {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: 6px;
         width: 100%;
+        margin: 0;
+        padding: 0;
+        border: none;
+    }
+    
+    .plant-list-col-left .plant-list-actions .btn-action {
+        width: 30px;
+        height: 30px;
+        padding: 5px;
+        flex: 0 0 auto;
+    }
+    
+    .plant-list-col-left .plant-list-actions .btn-action-icon {
+        width: 15px;
+        height: 15px;
+    }
+    
+    /* Columna derecha: campos - 50% del ancho */
+    .plant-list-col-right {
+        flex: 0 0 50%;
+        width: 50%;
+        display: flex;
         flex-direction: column;
         align-items: flex-start;
+        gap: 6px;
+        min-width: 0;
+        box-sizing: border-box;
+    }
+    
+    .plant-list-mobile .plant-list-field {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        width: 100%;
+        min-width: 0;
+    }
+    
+    .plant-list-mobile .plant-list-label {
+        font-size: 0.7rem;
+        flex-shrink: 0;
+        white-space: nowrap;
+    }
+    
+    .plant-list-mobile .plant-list-value {
+        font-size: 0.7rem;
+        word-break: break-word;
+        word-wrap: break-word;
+        overflow-wrap: break-word;
+        flex: 1;
+        min-width: 0;
+    }
+    
+    /* Fila de iconos de avisos */
+    .plant-list-mobile .plant-list-icons {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
         gap: 8px;
+        width: 100%;
+        padding-top: 6px;
+        border-top: 1px solid rgba(255, 255, 255, 0.15);
     }
     
-    .plant-list-icons {
-        width: 100%;
-        justify-content: flex-start;
+    .plant-list-row .baby-indicator,
+    .plant-list-row .poor-health-indicator,
+    .plant-list-row .watering-due-indicator,
+    .plant-list-row .custom-reminder-indicator {
+        width: 26px;
+        height: 26px;
     }
     
-    .plant-list-actions {
-        width: 100%;
-        justify-content: flex-end;
+    .plant-list-row .baby-icon,
+    .plant-list-row .poor-health-icon,
+    .plant-list-row .watering-due-icon,
+    .plant-list-row .custom-reminder-icon {
+        width: 16px;
+        height: 16px;
     }
     
     .dashboard-row-2 {
@@ -760,11 +877,68 @@ small {
     border: 3px solid rgba(255, 255, 255, 0.8);
     border-radius: 12px;
     padding: 15px 20px;
-    display: flex;
-    align-items: center;
-    gap: 20px;
     transition: all 0.3s ease;
     cursor: pointer;
+}
+
+/* Vista PC: Todo en una fila horizontal */
+.plant-list-desktop {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 20px;
+    width: 100%;
+}
+
+.plant-list-name-desktop {
+    flex: 0 0 auto;
+    min-width: 150px;
+}
+
+.plant-list-name-desktop .plant-list-title {
+    font-size: 1.1rem;
+    color: var(--light-green);
+    margin: 0;
+    font-weight: 600;
+}
+
+.plant-list-info-desktop {
+    flex: 1;
+    display: flex;
+    flex-direction: row;
+    gap: 20px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.plant-list-actions-desktop {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.plant-list-icons-desktop {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+/* Vista Móvil: Ocultar por defecto (solo visible en móvil) */
+.plant-list-mobile {
+    display: none;
+}
+
+/* Asegurar que en PC solo se vea la vista desktop */
+@media (min-width: 769px) {
+    .plant-list-desktop {
+        display: flex !important;
+    }
+    
+    .plant-list-mobile {
+        display: none !important;
+    }
 }
 
 .plant-list-row:hover {
@@ -853,6 +1027,14 @@ small {
     cursor: pointer;
     position: relative;
     overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+@media (min-width: 769px) {
+    .plant-card {
+        justify-content: space-between;
+    }
 }
 
 .plant-card::before {
@@ -883,6 +1065,13 @@ small {
     align-items: start;
     margin-bottom: 15px;
     position: relative;
+    flex-shrink: 0;
+}
+
+@media (min-width: 769px) {
+    .plant-card-header {
+        margin-bottom: 0;
+    }
 }
 
 .poor-health-indicator {
@@ -933,6 +1122,18 @@ small {
     font-style: italic;
 }
 
+.plant-card-content {
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+}
+
+@media (min-width: 769px) {
+    .plant-card-content {
+        justify-content: flex-end;
+    }
+}
+
 .plant-card-image {
     width: 100%;
     height: 200px;
@@ -940,10 +1141,12 @@ small {
     border-radius: 12px;
     margin-bottom: 15px;
     border: 1px solid rgba(255, 255, 255, 0.8);
+    flex-shrink: 0;
 }
 
 .plant-card-info {
     margin-bottom: 15px;
+    flex-shrink: 0;
 }
 
 .info-item {
@@ -1000,6 +1203,7 @@ small {
     gap: 8px;
     margin-top: 15px;
     width: 100%;
+    flex-shrink: 0;
 }
 
 .btn-action {
@@ -1028,7 +1232,7 @@ small {
     opacity: 0.9;
 }
 
-#changeBgBtn, #toggleDashboardBtn {
+#changeFontBtn, #changeBgBtn, #toggleDashboardBtn {
     width: 37px;
     height: 37px;
     padding: 8px;
@@ -1716,8 +1920,35 @@ small {
         grid-template-columns: 1fr;
     }
 
-    .plants-grid {
-        grid-template-columns: 1fr;
+    header {
+        padding: 15px;
+    }
+    
+    header > div:first-child {
+        flex-direction: column;
+        align-items: center;
+        gap: 15px;
+    }
+    
+    .header-logo {
+        height: 100px;
+        max-width: 100%;
+        width: auto;
+    }
+    
+    header > div:first-child > div:last-child {
+        display: flex;
+        gap: 10px;
+        justify-content: center;
+        width: 100%;
+    }
+    
+    #changeFontBtn,
+    #changeBgBtn {
+        flex-shrink: 0;
+        width: 40px;
+        height: 40px;
+        padding: 8px;
     }
 
     header h1 {
@@ -1732,6 +1963,19 @@ small {
     .data-actions .btn-small {
         flex: 1;
         min-width: 120px;
+    }
+    
+    /* Modales en móvil - centrados */
+    #fontModal .modal-content,
+    #bgModal .modal-content {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        right: auto;
+        max-width: 90vw;
+        width: 90vw;
+        max-width: 320px;
     }
 
     .modal-content {

@@ -1495,11 +1495,22 @@ class PlantManager {
     positionModalNearButton(modal, button) {
         if (!modal || !button) return;
         
-        const buttonRect = button.getBoundingClientRect();
         const modalContent = modal.querySelector('.modal-content');
         if (!modalContent) return;
         
-        // Calcular posición: debajo del botón, alineado a la derecha
+        // En móvil, centrar el modal
+        if (this.isMobileDevice() || window.innerWidth <= 768) {
+            modalContent.style.top = '50%';
+            modalContent.style.left = '50%';
+            modalContent.style.right = 'auto';
+            modalContent.style.bottom = 'auto';
+            modalContent.style.transform = 'translate(-50%, -50%)';
+            modalContent.style.position = 'fixed';
+            return;
+        }
+        
+        // En desktop, posicionar cerca del botón
+        const buttonRect = button.getBoundingClientRect();
         const top = buttonRect.bottom + 10;
         const right = window.innerWidth - buttonRect.right;
         
@@ -3463,7 +3474,28 @@ class PlantManager {
     }
 
     renderPlants(plantsToRender = null) {
-        const plants = plantsToRender || this.plants;
+        let plants = plantsToRender || this.plants;
+        
+        // Ordenar plantas: primero por tipo, luego alfabéticamente por nombre
+        plants = [...plants].sort((a, b) => {
+            // Primero por tipo
+            const typeA = (a.type || 'Sin tipo').toLowerCase();
+            const typeB = (b.type || 'Sin tipo').toLowerCase();
+            
+            if (typeA !== typeB) {
+                // Si uno es "Sin tipo", va al final
+                if (typeA === 'sin tipo') return 1;
+                if (typeB === 'sin tipo') return -1;
+                // Ordenar alfabéticamente por tipo
+                return typeA.localeCompare(typeB, 'es');
+            }
+            
+            // Si tienen el mismo tipo, ordenar alfabéticamente por nombre
+            const nameA = (a.name || '').toLowerCase();
+            const nameB = (b.name || '').toLowerCase();
+            return nameA.localeCompare(nameB, 'es');
+        });
+        
         this.renderDashboard(plants); // Actualizar dashboard con las plantas a mostrar
         const container = document.getElementById('plantsContainer');
         
@@ -3598,21 +3630,23 @@ class PlantManager {
                         ` : ''}
                     </div>
                 </div>
-                <img src="${lastPhoto}" alt="${this.escapeHtml(plant.name)}" class="plant-card-image" 
-                     onerror="if(this.src !== 'https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=400') { plantManager.removeInvalidPhoto('${plant.id}', this.src).then(() => { this.src='https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=400'; }); } else { this.src='https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=400'; }">
-                <div class="plant-card-info">
-                    ${wateringStatus}
-                </div>
-                <div class="plant-card-actions">
-                    <button class="btn-action btn-water-action" data-water-id="${plant.id}" title="Regar">
-                        <img src="img/icons/water-drop.svg" alt="Regar" class="btn-action-icon">
-                    </button>
-                    <button class="btn-action btn-edit-action" data-edit-id="${plant.id}" title="Editar">
-                        <img src="img/icons/edit.svg" alt="Editar" class="btn-action-icon">
-                    </button>
-                    <button class="btn-action btn-delete-action" data-delete-id="${plant.id}" title="Eliminar">
-                        <img src="img/icons/delete.svg" alt="Eliminar" class="btn-action-icon">
-                    </button>
+                <div class="plant-card-content">
+                    <img src="${lastPhoto}" alt="${this.escapeHtml(plant.name)}" class="plant-card-image" 
+                         onerror="if(this.src !== 'https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=400') { plantManager.removeInvalidPhoto('${plant.id}', this.src).then(() => { this.src='https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=400'; }); } else { this.src='https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=400'; }">
+                    <div class="plant-card-info">
+                        ${wateringStatus}
+                    </div>
+                    <div class="plant-card-actions">
+                        <button class="btn-action btn-water-action" data-water-id="${plant.id}" title="Regar">
+                            <img src="img/icons/water-drop.svg" alt="Regar" class="btn-action-icon">
+                        </button>
+                        <button class="btn-action btn-edit-action" data-edit-id="${plant.id}" title="Editar">
+                            <img src="img/icons/edit.svg" alt="Editar" class="btn-action-icon">
+                        </button>
+                        <button class="btn-action btn-delete-action" data-delete-id="${plant.id}" title="Eliminar">
+                            <img src="img/icons/delete.svg" alt="Eliminar" class="btn-action-icon">
+                        </button>
+                    </div>
                 </div>
             </div>
         `;
@@ -3639,57 +3673,91 @@ class PlantManager {
         // Obtener luz requerida
         const light = plant.light || 'Sin especificar';
 
+        const iconsHtml = `
+            ${plant.baby ? `
+                <div class="baby-indicator" title="Baby / Esqueje">
+                    <img src="img/icons/pacifier.svg" alt="Baby/Esqueje" class="baby-icon">
+                </div>
+            ` : ''}
+            ${plant.poorHealth ? `
+                <div class="poor-health-indicator" title="Planta en mala salud">
+                    <img src="img/icons/warning.svg" alt="Mala salud" class="poor-health-icon">
+                </div>
+            ` : ''}
+            ${this.needsWateringToday(plant) ? `
+                <div class="watering-due-indicator" title="Necesita riego hoy">
+                    <img src="img/icons/water-drop.svg" alt="Riego debido" class="watering-due-icon">
+                </div>
+            ` : ''}
+            ${this.hasCustomRemindersDueToday(plant) ? `
+                <div class="custom-reminder-indicator" title="Tiene recordatorios personalizados para hoy">
+                    <img src="img/icons/notification.svg" alt="Recordatorios" class="custom-reminder-icon">
+                </div>
+            ` : ''}
+        `;
+        
+        const buttonsHtml = `
+            <button class="btn-action btn-water-action" data-water-id="${plant.id}" title="Regar">
+                <img src="img/icons/water-drop.svg" alt="Regar" class="btn-action-icon">
+            </button>
+            <button class="btn-action btn-edit-action" data-edit-id="${plant.id}" title="Editar">
+                <img src="img/icons/edit.svg" alt="Editar" class="btn-action-icon">
+            </button>
+            <button class="btn-action btn-delete-action" data-delete-id="${plant.id}" title="Eliminar">
+                <img src="img/icons/delete.svg" alt="Eliminar" class="btn-action-icon">
+            </button>
+        `;
+
         return `
             <div class="plant-list-row" data-plant-id="${plant.id}">
-                <div class="plant-list-name">
-                    <h3 class="plant-list-title">${this.escapeHtml(plant.name)}</h3>
-                    <p class="plant-list-species">${this.escapeHtml(plant.species)}${plant.variety ? ' - ' + this.escapeHtml(plant.variety) : ''}</p>
-                </div>
-                <div class="plant-list-info">
-                    <div class="plant-list-field">
-                        <span class="plant-list-label">Tipo:</span>
-                        <span class="plant-list-value">${this.escapeHtml(plantType)}</span>
+                <!-- Vista PC: Todo en una fila horizontal -->
+                <div class="plant-list-desktop">
+                    <div class="plant-list-name-desktop">
+                        <h3 class="plant-list-title">${this.escapeHtml(plant.name)}</h3>
                     </div>
-                    <div class="plant-list-field">
-                        <span class="plant-list-label">Luz:</span>
-                        <span class="plant-list-value">${this.escapeHtml(light)}</span>
+                    <div class="plant-list-info-desktop">
+                        <div class="plant-list-field">
+                            <span class="plant-list-label">Tipo:</span>
+                            <span class="plant-list-value">${this.escapeHtml(plantType)}</span>
+                        </div>
+                        <div class="plant-list-field">
+                            <span class="plant-list-label">Luz:</span>
+                            <span class="plant-list-value">${this.escapeHtml(light)}</span>
+                        </div>
                     </div>
-                    <div class="plant-list-field">
-                        ${wateringStatus}
+                    <div class="plant-list-actions-desktop">
+                        ${buttonsHtml}
+                    </div>
+                    <div class="plant-list-icons-desktop">
+                        ${iconsHtml}
                     </div>
                 </div>
-                <div class="plant-list-icons">
-                    ${plant.baby ? `
-                        <div class="baby-indicator" title="Baby / Esqueje">
-                            <img src="img/icons/pacifier.svg" alt="Baby/Esqueje" class="baby-icon">
+                
+                <!-- Vista Móvil: 2 columnas + fila de iconos -->
+                <div class="plant-list-mobile">
+                    <div class="plant-list-main">
+                        <div class="plant-list-col-left">
+                            <div class="plant-list-name-only">
+                                <h3 class="plant-list-title">${this.escapeHtml(plant.name)}</h3>
+                            </div>
+                            <div class="plant-list-actions">
+                                ${buttonsHtml}
+                            </div>
                         </div>
-                    ` : ''}
-                    ${plant.poorHealth ? `
-                        <div class="poor-health-indicator" title="Planta en mala salud">
-                            <img src="img/icons/warning.svg" alt="Mala salud" class="poor-health-icon">
+                        <div class="plant-list-col-right">
+                            <div class="plant-list-field">
+                                <span class="plant-list-label">Tipo:</span>
+                                <span class="plant-list-value">${this.escapeHtml(plantType)}</span>
+                            </div>
+                            <div class="plant-list-field">
+                                <span class="plant-list-label">Luz:</span>
+                                <span class="plant-list-value">${this.escapeHtml(light)}</span>
+                            </div>
                         </div>
-                    ` : ''}
-                    ${this.needsWateringToday(plant) ? `
-                        <div class="watering-due-indicator" title="Necesita riego hoy">
-                            <img src="img/icons/water-drop.svg" alt="Riego debido" class="watering-due-icon">
-                        </div>
-                    ` : ''}
-                    ${this.hasCustomRemindersDueToday(plant) ? `
-                        <div class="custom-reminder-indicator" title="Tiene recordatorios personalizados para hoy">
-                            <img src="img/icons/notification.svg" alt="Recordatorios" class="custom-reminder-icon">
-                        </div>
-                    ` : ''}
-                </div>
-                <div class="plant-list-actions">
-                    <button class="btn-action btn-water-action" data-water-id="${plant.id}" title="Regar">
-                        <img src="img/icons/water-drop.svg" alt="Regar" class="btn-action-icon">
-                    </button>
-                    <button class="btn-action btn-edit-action" data-edit-id="${plant.id}" title="Editar">
-                        <img src="img/icons/edit.svg" alt="Editar" class="btn-action-icon">
-                    </button>
-                    <button class="btn-action btn-delete-action" data-delete-id="${plant.id}" title="Eliminar">
-                        <img src="img/icons/delete.svg" alt="Eliminar" class="btn-action-icon">
-                    </button>
+                    </div>
+                    <div class="plant-list-icons">
+                        ${iconsHtml}
+                    </div>
                 </div>
             </div>
         `;
