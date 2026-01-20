@@ -1190,11 +1190,12 @@ class PlantManager {
             // Font changer
             const changeFontBtn = document.getElementById('changeFontBtn');
             if (changeFontBtn) {
-                changeFontBtn.addEventListener('click', () => {
+                changeFontBtn.addEventListener('click', (e) => {
                     const modal = document.getElementById('fontModal');
                     if (modal) {
                         modal.classList.remove('hidden');
                         this.updateFontModal();
+                        this.positionModalNearButton(modal, changeFontBtn);
                     }
                 });
             }
@@ -1209,19 +1210,31 @@ class PlantManager {
                     });
                 }
                 
-                if (!this.isMobileDevice()) {
-                    let mouseDownOnBackground = false;
-                    
-                    fontModal.addEventListener('mousedown', (e) => {
-                        mouseDownOnBackground = (e.target.id === 'fontModal' || e.target.classList.contains('close-font-modal'));
-                    });
-                    fontModal.addEventListener('mouseup', (e) => {
-                        if (mouseDownOnBackground && (e.target.id === 'fontModal' || e.target.classList.contains('close-font-modal'))) {
-                            fontModal.classList.add('hidden');
+                // Cerrar al hacer clic fuera del modal
+                fontModal.addEventListener('click', (e) => {
+                    if (e.target === fontModal) {
+                        fontModal.classList.add('hidden');
+                    }
+                });
+                
+                // Reposicionar al hacer scroll o redimensionar
+                window.addEventListener('scroll', () => {
+                    if (!fontModal.classList.contains('hidden')) {
+                        const changeFontBtn = document.getElementById('changeFontBtn');
+                        if (changeFontBtn) {
+                            this.positionModalNearButton(fontModal, changeFontBtn);
                         }
-                        mouseDownOnBackground = false;
-                    });
-                }
+                    }
+                }, true);
+                
+                window.addEventListener('resize', () => {
+                    if (!fontModal.classList.contains('hidden')) {
+                        const changeFontBtn = document.getElementById('changeFontBtn');
+                        if (changeFontBtn) {
+                            this.positionModalNearButton(fontModal, changeFontBtn);
+                        }
+                    }
+                });
             }
 
             // Opciones de fuente
@@ -1235,22 +1248,41 @@ class PlantManager {
             // Background changer
             const changeBgBtn = document.getElementById('changeBgBtn');
             if (changeBgBtn) {
-                changeBgBtn.addEventListener('click', () => {
+                changeBgBtn.addEventListener('click', (e) => {
                     this.showBgModal();
+                    const modal = document.getElementById('bgModal');
+                    if (modal) {
+                        this.positionModalNearButton(modal, changeBgBtn);
+                    }
                 });
             }
 
             const bgModal = document.getElementById('bgModal');
-            if (bgModal && !this.isMobileDevice()) {
-                let mouseDownOnBackground = false;
-                bgModal.addEventListener('mousedown', (e) => {
-                    mouseDownOnBackground = (e.target.id === 'bgModal' || e.target.classList.contains('close-bg-modal'));
-                });
-                bgModal.addEventListener('mouseup', (e) => {
-                    if (mouseDownOnBackground && (e.target.id === 'bgModal' || e.target.classList.contains('close-bg-modal'))) {
+            if (bgModal) {
+                // Cerrar al hacer clic fuera del modal
+                bgModal.addEventListener('click', (e) => {
+                    if (e.target === bgModal) {
                         this.closeBgModal();
                     }
-                    mouseDownOnBackground = false;
+                });
+                
+                // Reposicionar al hacer scroll o redimensionar
+                window.addEventListener('scroll', () => {
+                    if (!bgModal.classList.contains('hidden')) {
+                        const changeBgBtn = document.getElementById('changeBgBtn');
+                        if (changeBgBtn) {
+                            this.positionModalNearButton(bgModal, changeBgBtn);
+                        }
+                    }
+                }, true);
+                
+                window.addEventListener('resize', () => {
+                    if (!bgModal.classList.contains('hidden')) {
+                        const changeBgBtn = document.getElementById('changeBgBtn');
+                        if (changeBgBtn) {
+                            this.positionModalNearButton(bgModal, changeBgBtn);
+                        }
+                    }
                 });
             }
 
@@ -1459,39 +1491,24 @@ class PlantManager {
         });
     }
     
-    // Actualizar modal de fuente con la fuente activa
-    updateFontModal() {
-        const savedFont = localStorage.getItem('plantDiaryFont') || "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif";
-        document.querySelectorAll('.font-option').forEach(option => {
-            option.classList.remove('active');
-            if (option.dataset.font === savedFont) {
-                option.classList.add('active');
-            }
-        });
-    }
-    
-    // Cambiar fuente de toda la página
-    changeFont(fontFamily, save = true) {
-        if (save) {
-            localStorage.setItem('plantDiaryFont', fontFamily);
-        }
+    // Posicionar modal cerca del botón
+    positionModalNearButton(modal, button) {
+        if (!modal || !button) return;
         
-        // Aplicar fuente a todo el body y todos los elementos
-        document.body.style.fontFamily = fontFamily;
+        const buttonRect = button.getBoundingClientRect();
+        const modalContent = modal.querySelector('.modal-content');
+        if (!modalContent) return;
         
-        // También aplicar a todos los elementos para asegurar que se aplique
-        const allElements = document.querySelectorAll('*');
-        allElements.forEach(el => {
-            el.style.fontFamily = fontFamily;
-        });
+        // Calcular posición: debajo del botón, alineado a la derecha
+        const top = buttonRect.bottom + 10;
+        const right = window.innerWidth - buttonRect.right;
         
-        // Marcar opción activa en el modal si está abierto
-        document.querySelectorAll('.font-option').forEach(option => {
-            option.classList.remove('active');
-            if (option.dataset.font === fontFamily) {
-                option.classList.add('active');
-            }
-        });
+        modalContent.style.top = `${top}px`;
+        modalContent.style.right = `${right}px`;
+        modalContent.style.left = 'auto';
+        modalContent.style.bottom = 'auto';
+        modalContent.style.transform = 'none';
+        modalContent.style.position = 'fixed';
     }
     
     // Actualizar modal de fuente con la fuente activa

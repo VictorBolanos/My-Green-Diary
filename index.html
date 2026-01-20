@@ -6,6 +6,9 @@
     <title>My Green Diary - Diario de Plantas</title>
     <link rel="icon" type="image/png" href="img/favicon.png">
     <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Open+Sans:wght@400;600;700&family=Lato:wght@400;700&family=Montserrat:wght@400;600;700&family=Raleway:wght@400;600;700&family=Playfair+Display:wght@400;700&family=Merriweather:wght@400;700&family=Source+Code+Pro:wght@400;600&family=Ubuntu:wght@400;500;700&display=swap" rel="stylesheet">
     
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
@@ -430,7 +433,7 @@
         <div id="fontModal" class="modal hidden">
             <div class="modal-content glass-panel bg-modal-content">
                 <span class="close-modal close-font-modal">&times;</span>
-                <h2 style="margin-bottom: 20px; color: var(--light-green);">🔤 Cambiar Fuente</h2>
+                <h2 style="margin-bottom: 15px; color: var(--light-green); font-size: 1.1rem;">Cambiar Fuente</h2>
                 <div class="font-options">
                     <div class="font-option" data-font="'Segoe UI', Tahoma, Geneva, Verdana, sans-serif">
                         <div class="font-preview" style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">Segoe UI</div>
@@ -442,9 +445,9 @@
                         <p>Arial</p>
                         <span class="font-check">✓</span>
                     </div>
-                    <div class="font-option" data-font="'Helvetica', sans-serif">
-                        <div class="font-preview" style="font-family: 'Helvetica', sans-serif;">Helvetica</div>
-                        <p>Helvetica</p>
+                    <div class="font-option" data-font="'Consolas', monospace">
+                        <div class="font-preview" style="font-family: 'Consolas', monospace;">Consolas</div>
+                        <p>Consolas</p>
                         <span class="font-check">✓</span>
                     </div>
                     <div class="font-option" data-font="'Georgia', serif">
@@ -477,6 +480,51 @@
                         <p>Comic Sans MS</p>
                         <span class="font-check">✓</span>
                     </div>
+                    <div class="font-option" data-font="'Roboto', sans-serif">
+                        <div class="font-preview" style="font-family: 'Roboto', sans-serif;">Roboto</div>
+                        <p>Roboto</p>
+                        <span class="font-check">✓</span>
+                    </div>
+                    <div class="font-option" data-font="'Open Sans', sans-serif">
+                        <div class="font-preview" style="font-family: 'Open Sans', sans-serif;">Open Sans</div>
+                        <p>Open Sans</p>
+                        <span class="font-check">✓</span>
+                    </div>
+                    <div class="font-option" data-font="'Lato', sans-serif">
+                        <div class="font-preview" style="font-family: 'Lato', sans-serif;">Lato</div>
+                        <p>Lato</p>
+                        <span class="font-check">✓</span>
+                    </div>
+                    <div class="font-option" data-font="'Montserrat', sans-serif">
+                        <div class="font-preview" style="font-family: 'Montserrat', sans-serif;">Montserrat</div>
+                        <p>Montserrat</p>
+                        <span class="font-check">✓</span>
+                    </div>
+                    <div class="font-option" data-font="'Raleway', sans-serif">
+                        <div class="font-preview" style="font-family: 'Raleway', sans-serif;">Raleway</div>
+                        <p>Raleway</p>
+                        <span class="font-check">✓</span>
+                    </div>
+                    <div class="font-option" data-font="'Playfair Display', serif">
+                        <div class="font-preview" style="font-family: 'Playfair Display', serif;">Playfair Display</div>
+                        <p>Playfair Display</p>
+                        <span class="font-check">✓</span>
+                    </div>
+                    <div class="font-option" data-font="'Merriweather', serif">
+                        <div class="font-preview" style="font-family: 'Merriweather', serif;">Merriweather</div>
+                        <p>Merriweather</p>
+                        <span class="font-check">✓</span>
+                    </div>
+                    <div class="font-option" data-font="'Source Code Pro', monospace">
+                        <div class="font-preview" style="font-family: 'Source Code Pro', monospace;">Source Code Pro</div>
+                        <p>Source Code Pro</p>
+                        <span class="font-check">✓</span>
+                    </div>
+                    <div class="font-option" data-font="'Ubuntu', sans-serif">
+                        <div class="font-preview" style="font-family: 'Ubuntu', sans-serif;">Ubuntu</div>
+                        <p>Ubuntu</p>
+                        <span class="font-check">✓</span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -485,7 +533,7 @@
         <div id="bgModal" class="modal hidden">
             <div class="modal-content glass-panel bg-modal-content">
                 <span class="close-modal close-bg-modal">&times;</span>
-                <h2 style="margin-bottom: 20px; color: var(--light-green);">🎨 Cambiar Fondo de Pantalla</h2>
+                <h2 style="margin-bottom: 15px; color: var(--light-green); font-size: 1.1rem;">Cambiar Fondo</h2>
                 <div class="bg-options">
                     <div class="bg-option" data-bg="palm-tree-leaves">
                         <img src="img/bgs/palm-tree-leaves.jpg" alt="Palmeras">
