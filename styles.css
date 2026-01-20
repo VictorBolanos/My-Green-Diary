@@ -36,6 +36,17 @@ body {
     margin: 0 auto;
 }
 
+/* Contenedor principal con capa adicional de transparencia */
+.content-wrapper {
+    background: rgba(10, 31, 10, 0.4);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border-radius: 20px;
+    padding: 30px;
+    box-shadow: 0 12px 48px rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
 /* Glass Panel Effect */
 .glass-panel {
     background: var(--glass-bg);
