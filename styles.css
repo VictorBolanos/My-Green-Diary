@@ -150,6 +150,46 @@ header > div:first-child {
 }
 
 @media (max-width: 768px) {
+    .plants-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 15px;
+    }
+    
+    .plants-grid.compact-view {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .plant-list-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+        padding: 12px 15px;
+    }
+    
+    .plant-list-name {
+        flex: 1;
+        width: 100%;
+    }
+    
+    .plant-list-info {
+        width: 100%;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+    
+    .plant-list-icons {
+        width: 100%;
+        justify-content: flex-start;
+    }
+    
+    .plant-list-actions {
+        width: 100%;
+        justify-content: flex-end;
+    }
+    
     .dashboard-row-2 {
         grid-template-columns: repeat(2, 1fr);
     }
@@ -691,9 +731,105 @@ small {
 /* Grid de Plantas */
 .plants-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-    gap: 25px;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 20px;
     margin-bottom: 30px;
+}
+
+.plants-grid.compact-view {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+/* Vista lista compacta - fila de planta */
+.plant-list-row {
+    background: var(--glass-bg);
+    backdrop-filter: blur(4.75px);
+    border: 3px solid rgba(255, 255, 255, 0.8);
+    border-radius: 12px;
+    padding: 15px 20px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.plant-list-row:hover {
+    transform: translateX(5px);
+    border-color: rgba(255, 255, 255, 0.9);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+.plant-list-name {
+    flex: 0 0 200px;
+    min-width: 150px;
+}
+
+.plant-list-title {
+    font-size: 1.1rem;
+    color: var(--light-green);
+    margin: 0 0 4px 0;
+    font-weight: 600;
+}
+
+.plant-list-species {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    margin: 0;
+    font-style: italic;
+}
+
+.plant-list-info {
+    flex: 1;
+    display: flex;
+    gap: 20px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.plant-list-field {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.plant-list-label {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+.plant-list-value {
+    color: var(--text-light);
+    font-size: 0.85rem;
+}
+
+.plant-list-icons {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.plant-list-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.plant-list-actions .btn-action {
+    width: 36px;
+    height: 36px;
+    padding: 8px;
+    flex: 0 0 auto;
+}
+
+.plant-list-actions .btn-action-icon {
+    width: 18px;
+    height: 18px;
 }
 
 .plant-card {
@@ -3137,6 +3273,99 @@ small {
     outline: none;
     border-color: var(--accent-green);
     box-shadow: 0 0 0 2px rgba(74, 154, 74, 0.2);
+}
+
+/* Pills de filtros activos */
+.active-filter-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: rgba(255, 255, 255, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    border-radius: 20px;
+    font-size: 0.85rem;
+    color: var(--text-light);
+    font-weight: 500;
+}
+
+.active-filter-pill span {
+    flex: 1;
+}
+
+/* Colores específicos por tipo de filtro */
+.filter-pill-type {
+    background: rgba(74, 154, 74, 0.2);
+    border-color: rgba(74, 154, 74, 0.6);
+    color: var(--light-green);
+}
+
+.filter-pill-light {
+    background: rgba(255, 193, 7, 0.2);
+    border-color: rgba(255, 193, 7, 0.6);
+    color: #ffc107;
+}
+
+.filter-pill-watering {
+    background: rgba(135, 206, 250, 0.2);
+    border-color: rgba(135, 206, 250, 0.6);
+    color: #87cefa;
+}
+
+.filter-pill-temperature {
+    background: rgba(220, 53, 69, 0.2);
+    border-color: rgba(220, 53, 69, 0.6);
+    color: #ff6b6b;
+}
+
+.filter-pill-humidity {
+    background: rgba(0, 188, 212, 0.2);
+    border-color: rgba(0, 188, 212, 0.6);
+    color: #00bcd4;
+}
+
+.filter-pill-health {
+    background: rgba(74, 154, 74, 0.2);
+    border-color: rgba(74, 154, 74, 0.6);
+    color: var(--light-green);
+}
+
+.filter-pill-health.filter-pill-health-poor {
+    background: rgba(220, 53, 69, 0.2);
+    border-color: rgba(220, 53, 69, 0.6);
+    color: #ff6b6b;
+}
+
+.filter-pill-baby {
+    background: rgba(255, 192, 203, 0.2);
+    border-color: rgba(255, 192, 203, 0.6);
+    color: #ffc0cb;
+}
+
+.filter-pill-remove {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+}
+
+.filter-pill-remove:hover {
+    background: rgba(220, 53, 69, 0.3);
+    transform: scale(1.1);
+}
+
+.filter-pill-icon {
+    width: 12px;
+    height: 12px;
+    filter: brightness(0) invert(1);
+    opacity: 0.8;
 }
 
 .custom-reminder-item {

@@ -70,6 +70,8 @@ class PlantManager {
         this.initialFormData = null; // Datos iniciales del formulario para detectar cambios
         this.modalHistoryState = null; // Estado para manejar el botón atrás del navegador
         this.solutionModalListenersAdded = false; // Flag para evitar añadir listeners múltiples veces
+        this.activeFilters = {}; // Objeto para almacenar filtros activos {type: 'value', light: 'value', etc.}
+        this.viewMode = 'kanban'; // 'kanban' o 'compact'
         // Inicializar event listeners primero para que funcionen inmediatamente
         this.setupEventListeners();
         // Configurar manejo del botón atrás en móvil
@@ -995,7 +997,9 @@ class PlantManager {
             // Búsqueda
             const searchInput = document.getElementById('searchInput');
             if (searchInput) {
-                searchInput.addEventListener('input', (e) => this.filterPlants(e.target.value));
+                searchInput.addEventListener('input', (e) => {
+                    this.applyActiveFilters(); // Aplicar filtros activos + búsqueda
+                });
             }
 
             // Filtros
@@ -1007,6 +1011,21 @@ class PlantManager {
                 });
             });
 
+            // Botón de toggle de vista
+            const toggleViewModeBtn = document.getElementById('toggleViewModeBtn');
+            if (toggleViewModeBtn) {
+                // Inicializar texto del botón según el modo actual
+                const viewModeText = toggleViewModeBtn.querySelector('.view-mode-text');
+                if (viewModeText) {
+                    viewModeText.textContent = this.viewMode === 'compact' ? 'Compacta' : 'Kanban';
+                }
+                toggleViewModeBtn.title = this.viewMode === 'compact' ? 'Cambiar a vista kanban' : 'Cambiar a vista compacta';
+                
+                toggleViewModeBtn.addEventListener('click', () => {
+                    this.toggleViewMode();
+                });
+            }
+            
             // Botón de quitar todos los filtros
             const clearAllFiltersBtn = document.getElementById('clearAllFiltersBtn');
             if (clearAllFiltersBtn) {
@@ -2992,12 +3011,6 @@ class PlantManager {
         const totalHumidity = Object.values(humidityStats).reduce((a, b) => a + b, 0);
 
         dashboardContent.innerHTML = `
-            <div style="margin-bottom: 15px; display: flex; justify-content: flex-end;">
-                <button id="clearDashboardFiltersBtn" class="btn-secondary btn-small">
-                    <img src="img/icons/cancel.svg" alt="Quitar filtros" class="btn-icon">
-                    Quitar Filtros
-                </button>
-            </div>
             <div class="dashboard-rows-container">
                 <!-- Primera fila: 2 informes -->
                 <div class="dashboard-row dashboard-row-2">
@@ -3054,7 +3067,7 @@ class PlantManager {
                             <div class="dashboard-progress-item">
                                 <span class="dashboard-progress-label">${this.escapeHtml(light)}</span>
                                 <div class="dashboard-progress-bar">
-                                    <div class="dashboard-progress-fill" style="width: ${totalLight > 0 ? (count / totalLight) * 100 : 0}%; background: var(--accent-green);"></div>
+                                    <div class="dashboard-progress-fill" style="width: ${totalLight > 0 ? (count / totalLight) * 100 : 0}%; background: rgba(255, 193, 7, 0.8);"></div>
                                 </div>
                                 <span class="dashboard-progress-value">${count} · ${totalLight > 0 ? Math.round((count / totalLight) * 100) : 0}%</span>
                             </div>
@@ -3118,14 +3131,6 @@ class PlantManager {
         
         // Añadir event listeners para filtrado interactivo
         setTimeout(() => {
-            // Botón de quitar filtros del dashboard
-            const clearDashboardFiltersBtn = document.getElementById('clearDashboardFiltersBtn');
-            if (clearDashboardFiltersBtn) {
-                clearDashboardFiltersBtn.addEventListener('click', () => {
-                    this.clearAllFilters();
-                });
-            }
-            
             // Añadir tooltips a los paths del donut de tipo
             document.querySelectorAll('.dashboard-panel').forEach(panel => {
                 const title = panel.querySelector('.dashboard-panel-title');
@@ -3245,108 +3250,217 @@ class PlantManager {
         }, 100);
     }
 
-    filterByType(type) {
-        const filtered = this.plants.filter(plant => {
-            const plantType = plant.type || 'Sin tipo';
-            return plantType === type || (type === 'Sin tipo' && !plant.type);
+    // Aplicar todos los filtros activos combinados
+    applyActiveFilters() {
+        let filtered = [...this.plants];
+        
+        // Aplicar cada filtro activo
+        Object.keys(this.activeFilters).forEach(filterKey => {
+            const filterValue = this.activeFilters[filterKey];
+            
+            switch(filterKey) {
+                case 'type':
+                    filtered = filtered.filter(plant => {
+                        const plantType = plant.type || 'Sin tipo';
+                        return plantType === filterValue || (filterValue === 'Sin tipo' && !plant.type);
+                    });
+                    break;
+                case 'light':
+                    filtered = filtered.filter(plant => {
+                        const light = plant.light || '';
+                        return light === filterValue;
+                    });
+                    break;
+                case 'watering':
+                    filtered = filtered.filter(plant => {
+                        const spring = parseInt(plant.wateringSpring) || 0;
+                        const summer = parseInt(plant.wateringSummer) || 0;
+                        const autumn = parseInt(plant.wateringAutumn) || 0;
+                        const winter = parseInt(plant.wateringWinter) || 0;
+                        const avgDays = (spring + summer + autumn + winter) / 4;
+                        if (avgDays === 0) return false;
+                        if (filterValue === '1-3 días') return avgDays <= 3;
+                        if (filterValue === '4-7 días') return avgDays > 3 && avgDays <= 7;
+                        if (filterValue === '8-14 días') return avgDays > 7 && avgDays <= 14;
+                        if (filterValue === '15-21 días') return avgDays > 14 && avgDays <= 21;
+                        if (filterValue === '22+ días') return avgDays > 21;
+                        return false;
+                    });
+                    break;
+                case 'temperature':
+                    filtered = filtered.filter(plant => {
+                        const temp = plant.temperature || '';
+                        return temp === filterValue;
+                    });
+                    break;
+                case 'humidity':
+                    filtered = filtered.filter(plant => {
+                        const humidity = plant.humidity || '';
+                        return humidity === filterValue;
+                    });
+                    break;
+                case 'health':
+                    filtered = filtered.filter(plant => {
+                        const normalized = this.normalizePlantData(plant);
+                        const isPoorHealth = normalized.poorHealth || false;
+                        if (filterValue === 'healthy') return !isPoorHealth;
+                        if (filterValue === 'poor') return isPoorHealth;
+                        return false;
+                    });
+                    break;
+                case 'baby':
+                    filtered = filtered.filter(plant => {
+                        const normalized = this.normalizePlantData(plant);
+                        return normalized.baby === (filterValue === 'true');
+                    });
+                    break;
+            }
         });
         
+        // Aplicar búsqueda de texto si existe
+        const searchInput = document.getElementById('searchInput');
+        if (searchInput && searchInput.value.trim()) {
+            const searchTerm = searchInput.value.trim().toLowerCase();
+            filtered = filtered.filter(plant => {
+                return plant.name.toLowerCase().includes(searchTerm) ||
+                       plant.species.toLowerCase().includes(searchTerm) ||
+                       (plant.variety && plant.variety.toLowerCase().includes(searchTerm)) ||
+                       (plant.description && plant.description.toLowerCase().includes(searchTerm));
+            });
+        }
+        
         this.renderPlants(filtered);
-        this.showNotification(`Filtrado por: ${type}`, 'success');
+        this.renderActiveFiltersPills();
+    }
+    
+    // Añadir/quitar filtro activo
+    toggleFilter(filterKey, filterValue, filterLabel) {
+        if (this.activeFilters[filterKey] === filterValue) {
+            // Si ya está activo, quitarlo
+            delete this.activeFilters[filterKey];
+        } else {
+            // Añadir o reemplazar el filtro
+            this.activeFilters[filterKey] = filterValue;
+        }
+        
+        this.applyActiveFilters();
+    }
+    
+    // Quitar un filtro específico
+    removeFilter(filterKey) {
+        delete this.activeFilters[filterKey];
+        this.applyActiveFilters();
+    }
+    
+    // Renderizar pills de filtros activos
+    renderActiveFiltersPills() {
+        const container = document.getElementById('activeFiltersContainer');
+        if (!container) return;
+        
+        const filterLabels = {
+            'type': (v) => `Tipo: ${v}`,
+            'light': (v) => `Luz: ${v}`,
+            'watering': (v) => `Riego: ${v}`,
+            'temperature': (v) => `Temp: ${v}`,
+            'humidity': (v) => `Humedad: ${v}`,
+            'health': (v) => v === 'healthy' ? 'Saludable' : 'Mala salud',
+            'baby': (v) => v === 'true' ? 'Baby/Esqueje' : 'No baby'
+        };
+        
+        if (Object.keys(this.activeFilters).length === 0) {
+            container.innerHTML = '';
+            return;
+        }
+        
+        container.innerHTML = Object.keys(this.activeFilters).map(filterKey => {
+            const filterValue = this.activeFilters[filterKey];
+            const label = filterLabels[filterKey] ? filterLabels[filterKey](filterValue) : `${filterKey}: ${filterValue}`;
+            // Clase CSS según el tipo de filtro para colorear
+            let filterClass = `filter-pill-${filterKey}`;
+            // Clase adicional para salud cuando es "poor"
+            if (filterKey === 'health' && filterValue === 'poor') {
+                filterClass += ' filter-pill-health-poor';
+            }
+            return `
+                <div class="active-filter-pill ${filterClass}" data-filter-key="${filterKey}">
+                    <span>${this.escapeHtml(label)}</span>
+                    <button class="filter-pill-remove" onclick="plantManager.removeFilter('${filterKey}')" title="Quitar filtro">
+                        <img src="img/icons/cancel.svg" alt="Quitar" class="filter-pill-icon">
+                    </button>
+                </div>
+            `;
+        }).join('');
+    }
+    
+    // Toggle entre vista kanban y compacta
+    toggleViewMode() {
+        this.viewMode = this.viewMode === 'kanban' ? 'compact' : 'kanban';
+        const container = document.getElementById('plantsContainer');
+        const toggleBtn = document.getElementById('toggleViewModeBtn');
+        
+        if (container) {
+            if (this.viewMode === 'compact') {
+                container.classList.add('compact-view');
+            } else {
+                container.classList.remove('compact-view');
+            }
+        }
+        
+        // Actualizar título y texto del botón para indicar el modo actual
+        if (toggleBtn) {
+            toggleBtn.title = this.viewMode === 'compact' ? 'Cambiar a vista kanban' : 'Cambiar a vista compacta';
+            const currentModeText = this.viewMode === 'compact' ? 'Compacta' : 'Kanban';
+            const existingText = toggleBtn.querySelector('.view-mode-text');
+            if (existingText) {
+                existingText.textContent = currentModeText;
+            }
+        }
+        
+        // Re-renderizar para aplicar cambios
+        this.renderPlants();
+        this.showNotification(`Vista cambiada a: ${this.viewMode === 'compact' ? 'Compacta' : 'Kanban'}`, 'success');
+    }
+
+    filterByType(type) {
+        this.toggleFilter('type', type, `Tipo: ${type}`);
     }
 
     filterByLight(lightLevel) {
-        // Usar el valor real de luz directamente
-        const filtered = this.plants.filter(plant => {
-            const light = plant.light || '';
-            return light === lightLevel;
-        });
-        
-        this.renderPlants(filtered);
-        this.showNotification(`Filtrado por luz: ${lightLevel}`, 'success');
+        this.toggleFilter('light', lightLevel, `Luz: ${lightLevel}`);
     }
 
     filterByWatering(wateringRange) {
-        // Filtrar por rango de días (ej: "1-3 días", "4-7 días", etc.)
-        const filtered = this.plants.filter(plant => {
-            const spring = parseInt(plant.wateringSpring) || 0;
-            const summer = parseInt(plant.wateringSummer) || 0;
-            const autumn = parseInt(plant.wateringAutumn) || 0;
-            const winter = parseInt(plant.wateringWinter) || 0;
-            const avgDays = (spring + summer + autumn + winter) / 4;
-            
-            if (avgDays === 0) return false;
-            
-            // Mapear el rango a días
-            if (wateringRange === '1-3 días') {
-                return avgDays <= 3;
-            } else if (wateringRange === '4-7 días') {
-                return avgDays > 3 && avgDays <= 7;
-            } else if (wateringRange === '8-14 días') {
-                return avgDays > 7 && avgDays <= 14;
-            } else if (wateringRange === '15-21 días') {
-                return avgDays > 14 && avgDays <= 21;
-            } else if (wateringRange === '22+ días') {
-                return avgDays > 21;
-            }
-            return false;
-        });
-        
-        this.renderPlants(filtered);
-        this.showNotification(`Filtrado por riego: ${wateringRange}`, 'success');
+        this.toggleFilter('watering', wateringRange, `Riego: ${wateringRange}`);
     }
 
     filterByTemperature(temperatureLevel) {
-        // Usar el valor real de temperatura directamente
-        const filtered = this.plants.filter(plant => {
-            const temp = plant.temperature || '';
-            return temp === temperatureLevel;
-        });
-        
-        this.renderPlants(filtered);
-        this.showNotification(`Filtrado por temperatura: ${temperatureLevel}`, 'success');
+        this.toggleFilter('temperature', temperatureLevel, `Temp: ${temperatureLevel}`);
     }
 
     filterByHumidity(humidityLevel) {
-        // Usar el valor real de humedad directamente
-        const filtered = this.plants.filter(plant => {
-            const humidity = plant.humidity || '';
-            return humidity === humidityLevel;
-        });
-        
-        this.renderPlants(filtered);
-        this.showNotification(`Filtrado por humedad: ${humidityLevel}`, 'success');
+        this.toggleFilter('humidity', humidityLevel, `Humedad: ${humidityLevel}`);
     }
 
     filterByHealth(healthStatus) {
-        const filtered = this.plants.filter(plant => {
-            const normalized = this.normalizePlantData(plant);
-            const isPoorHealth = normalized.poorHealth || false;
-            
-            if (healthStatus === 'healthy') {
-                // Plantas saludables: no tienen poorHealth = true
-                return !isPoorHealth;
-            } else if (healthStatus === 'poor') {
-                // Plantas en mala salud: tienen poorHealth = true
-                return isPoorHealth;
-            }
-            return false;
-        });
-        
-        this.renderPlants(filtered);
-        this.renderReminders(); // Actualizar avisos
-        
-        // Actualizar búsqueda
-        const searchInput = document.getElementById('searchInput');
-        if (searchInput) {
-            searchInput.value = '';
-        }
+        this.toggleFilter('health', healthStatus, healthStatus === 'healthy' ? 'Saludable' : 'Mala salud');
     }
 
     renderPlants(plantsToRender = null) {
         const plants = plantsToRender || this.plants;
         this.renderDashboard(plants); // Actualizar dashboard con las plantas a mostrar
         const container = document.getElementById('plantsContainer');
+        
+        // Aplicar clase de vista según el modo
+        if (container) {
+            if (this.viewMode === 'compact') {
+                container.classList.add('compact-view');
+            } else {
+                container.classList.remove('compact-view');
+            }
+        }
+        
+        // Renderizar pills de filtros activos
+        this.renderActiveFiltersPills();
 
         // Si no hay plantas en la base de datos
         if (this.plants.length === 0) {
@@ -3372,7 +3486,12 @@ class PlantManager {
             return;
         }
 
-        container.innerHTML = plants.map(plant => this.createPlantCard(plant)).join('');
+        // Crear tarjetas según el modo de vista
+        if (this.viewMode === 'compact') {
+            container.innerHTML = plants.map(plant => this.createPlantCardCompact(plant)).join('');
+        } else {
+            container.innerHTML = plants.map(plant => this.createPlantCard(plant)).join('');
+        }
         
         // Agregar event listeners a las tarjetas
         plants.forEach(plant => {
@@ -3465,19 +3584,86 @@ class PlantManager {
                 <img src="${lastPhoto}" alt="${this.escapeHtml(plant.name)}" class="plant-card-image" 
                      onerror="if(this.src !== 'https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=400') { plantManager.removeInvalidPhoto('${plant.id}', this.src).then(() => { this.src='https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=400'; }); } else { this.src='https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=400'; }">
                 <div class="plant-card-info">
-                    ${plant.type ? `
-                        <div class="info-item">
-                            <span class="info-label"><img src="img/icons/plant-type.svg" alt="Tipo" class="info-icon"> Tipo:</span>
-                            <span class="info-value">${this.escapeHtml(plant.type)}</span>
-                        </div>
-                    ` : ''}
-                    <div class="info-item">
-                        <span class="info-label"><img src="img/icons/water-drop.svg" alt="Riego" class="info-icon"> Último riego:</span>
-                        <span class="info-value">${lastWatered}</span>
-                    </div>
                     ${wateringStatus}
                 </div>
                 <div class="plant-card-actions">
+                    <button class="btn-action btn-water-action" data-water-id="${plant.id}" title="Regar">
+                        <img src="img/icons/water-drop.svg" alt="Regar" class="btn-action-icon">
+                    </button>
+                    <button class="btn-action btn-edit-action" data-edit-id="${plant.id}" title="Editar">
+                        <img src="img/icons/edit.svg" alt="Editar" class="btn-action-icon">
+                    </button>
+                    <button class="btn-action btn-delete-action" data-delete-id="${plant.id}" title="Eliminar">
+                        <img src="img/icons/delete.svg" alt="Eliminar" class="btn-action-icon">
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+    
+    // Crear fila compacta de planta (vista lista)
+    createPlantCardCompact(plant) {
+        const normalizedPlant = this.normalizePlantData(plant);
+        
+        // Obtener última fecha de riego
+        const wateringDates = normalizedPlant.wateringDates || [];
+        const lastWateringDate = wateringDates.length > 0 ? wateringDates[0] : null;
+        const daysSinceWatering = lastWateringDate ? this.daysSince(lastWateringDate) : null;
+        
+        const wateringStatus = !lastWateringDate 
+            ? '<span class="watering-status needs-water">Sin registrar</span>'
+            : daysSinceWatering >= 7
+                ? `<span class="watering-status needs-water">Hace ${daysSinceWatering} días</span>`
+                : `<span class="watering-status recent">Hace ${daysSinceWatering} días</span>`;
+
+        // Obtener tipo de planta
+        const plantType = plant.type || 'Sin tipo';
+        
+        // Obtener luz requerida
+        const light = plant.light || 'Sin especificar';
+
+        return `
+            <div class="plant-list-row" data-plant-id="${plant.id}">
+                <div class="plant-list-name">
+                    <h3 class="plant-list-title">${this.escapeHtml(plant.name)}</h3>
+                    <p class="plant-list-species">${this.escapeHtml(plant.species)}${plant.variety ? ' - ' + this.escapeHtml(plant.variety) : ''}</p>
+                </div>
+                <div class="plant-list-info">
+                    <div class="plant-list-field">
+                        <span class="plant-list-label">Tipo:</span>
+                        <span class="plant-list-value">${this.escapeHtml(plantType)}</span>
+                    </div>
+                    <div class="plant-list-field">
+                        <span class="plant-list-label">Luz:</span>
+                        <span class="plant-list-value">${this.escapeHtml(light)}</span>
+                    </div>
+                    <div class="plant-list-field">
+                        ${wateringStatus}
+                    </div>
+                </div>
+                <div class="plant-list-icons">
+                    ${plant.baby ? `
+                        <div class="baby-indicator" title="Baby / Esqueje">
+                            <img src="img/icons/pacifier.svg" alt="Baby/Esqueje" class="baby-icon">
+                        </div>
+                    ` : ''}
+                    ${plant.poorHealth ? `
+                        <div class="poor-health-indicator" title="Planta en mala salud">
+                            <img src="img/icons/warning.svg" alt="Mala salud" class="poor-health-icon">
+                        </div>
+                    ` : ''}
+                    ${this.needsWateringToday(plant) ? `
+                        <div class="watering-due-indicator" title="Necesita riego hoy">
+                            <img src="img/icons/water-drop.svg" alt="Riego debido" class="watering-due-icon">
+                        </div>
+                    ` : ''}
+                    ${this.hasCustomRemindersDueToday(plant) ? `
+                        <div class="custom-reminder-indicator" title="Tiene recordatorios personalizados para hoy">
+                            <img src="img/icons/notification.svg" alt="Recordatorios" class="custom-reminder-icon">
+                        </div>
+                    ` : ''}
+                </div>
+                <div class="plant-list-actions">
                     <button class="btn-action btn-water-action" data-water-id="${plant.id}" title="Regar">
                         <img src="img/icons/water-drop.svg" alt="Regar" class="btn-action-icon">
                     </button>
@@ -5189,59 +5375,43 @@ class PlantManager {
 
     // Filtros y búsqueda
     filterPlantsByBaby(isBaby) {
-        const filtered = this.plants.filter(plant => {
-            const normalized = this.normalizePlantData(plant);
-            return normalized.baby === isBaby;
-        });
-        this.renderPlants(filtered);
-        this.renderReminders(); // Actualizar avisos
-        
-        // Actualizar búsqueda
-        const searchInput = document.getElementById('searchInput');
-        if (searchInput) {
-            searchInput.value = '';
-        }
+        this.toggleFilter('baby', isBaby.toString(), isBaby ? 'Baby/Esqueje' : 'No baby');
     }
 
     filterPlants(searchTerm) {
-        const filtered = this.plants.filter(plant => {
-            const searchLower = searchTerm.toLowerCase();
-            return plant.name.toLowerCase().includes(searchLower) ||
-                   plant.species.toLowerCase().includes(searchLower) ||
-                   (plant.description && plant.description.toLowerCase().includes(searchLower));
-        });
-        this.renderPlants(filtered);
+        // La búsqueda se aplica en applyActiveFilters
+        this.applyActiveFilters();
     }
 
     applyFilter(filterType) {
-        let filtered = [];
-        
         switch(filterType) {
             case 'needs-water':
-                filtered = this.plants.filter(plant => {
+                // Este filtro es especial, se aplica directamente
+                const needsWaterFiltered = this.plants.filter(plant => {
                     const normalizedPlant = this.normalizePlantData(plant);
                     const wateringDates = normalizedPlant.wateringDates || [];
                     if (wateringDates.length === 0) return true;
                     const lastWatering = new Date(wateringDates[0]);
                     return this.daysSince(lastWatering.toISOString()) >= 7;
                 });
+                this.renderPlants(needsWaterFiltered);
                 break;
             case 'recent':
-                filtered = this.plants.filter(plant => {
+                const recentFiltered = this.plants.filter(plant => {
                     if (!plant.createdAt) return false;
                     return this.daysSince(plant.createdAt) <= 7;
                 });
+                this.renderPlants(recentFiltered);
                 break;
             case 'poor-health':
-                filtered = this.plants.filter(plant => {
-                    return plant.poorHealth === true;
-                });
+                this.toggleFilter('health', 'poor', 'Mala salud');
+                break;
+            case 'all':
+                this.clearAllFilters();
                 break;
             default:
-                filtered = this.plants;
+                this.applyActiveFilters();
         }
-        
-        this.renderPlants(filtered);
     }
 
     toggleAdvancedFilters() {
@@ -5319,6 +5489,9 @@ class PlantManager {
     }
 
     clearAllFilters() {
+        // Limpiar filtros activos
+        this.activeFilters = {};
+        
         // Limpiar filtros avanzados (de forma segura)
         this.clearAdvancedFilters();
         
@@ -5331,8 +5504,15 @@ class PlantManager {
             allBtn.classList.add('active');
         }
         
+        // Limpiar búsqueda
+        const searchInput = document.getElementById('searchInput');
+        if (searchInput) {
+            searchInput.value = '';
+        }
+        
         // Renderizar todas las plantas (sin filtros)
         this.renderPlants();
+        this.renderActiveFiltersPills();
         this.showNotification('Filtros quitados', 'success');
     }
 

@@ -94,12 +94,25 @@
             <div id="dashboardContent">
                 <!-- Se renderizará dinámicamente -->
             </div>
-            <div class="dashboard-actions" style="display: flex; gap: 10px; align-items: center; margin-top: 12px;">
+            <div class="dashboard-actions" style="display: flex; gap: 10px; align-items: center; margin-top: 12px; flex-wrap: wrap;">
                 <button id="openPlantModalBtn" class="btn-secondary btn-small">
                     <img src="img/icons/plus.svg" alt="Agregar" class="btn-icon">
                     Nueva Planta
                 </button>
-                <div style="position: relative; flex: 1;">
+                <div id="activeFiltersContainer" style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap; flex: 1; min-width: 200px;">
+                    <!-- Pills de filtros activos se renderizarán aquí -->
+                </div>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <button id="toggleViewModeBtn" class="btn-secondary btn-small" title="Cambiar vista">
+                        <img src="img/icons/filter.svg" alt="Vista" class="btn-icon" id="viewModeIcon">
+                        <span class="view-mode-text">Kanban</span>
+                    </button>
+                    <button id="clearAllFiltersBtn" class="btn-secondary btn-small">
+                        <img src="img/icons/cancel.svg" alt="Quitar filtros" class="btn-icon">
+                        Quitar Filtros
+                    </button>
+                </div>
+                <div style="position: relative; flex: 1; min-width: 200px;">
                     <img src="img/icons/search.svg" alt="Buscar" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); width: 18px; height: 18px; filter: brightness(0) invert(1); opacity: 0.7; z-index: 1; pointer-events: none;">
                     <input type="text" id="searchInput" placeholder="Buscar plantas..." style="flex: 1; padding-left: 38px;">
                 </div>
