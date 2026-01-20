@@ -18,6 +18,7 @@
     --shadow: rgba(0, 0, 0, 0.3);
     --water-blue: rgb(135, 206, 250);
     --water-blue-opacity: rgba(135, 206, 250, 0.8);
+    --font-size-multiplier: 1;
 }
 
 body {
@@ -1343,6 +1344,7 @@ small {
 
 #fontModal .modal-content {
     padding: 15px;
+    overflow: hidden;
 }
 
 #bgModal .modal-content {
@@ -1445,9 +1447,12 @@ small {
     grid-template-columns: repeat(2, 1fr);
     gap: 10px;
     margin-top: 12px;
-    max-height: 50vh;
+    max-height: calc(60vh - 180px);
     overflow-y: auto;
+    overflow-x: hidden;
     padding-right: 6px;
+    flex: 1;
+    min-height: 0;
 }
 
 .font-option {

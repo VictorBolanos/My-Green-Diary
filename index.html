@@ -434,6 +434,14 @@
             <div class="modal-content glass-panel bg-modal-content">
                 <span class="close-modal close-font-modal">&times;</span>
                 <h2 style="margin-bottom: 15px; color: var(--light-green); font-size: 1.1rem;">Cambiar Fuente</h2>
+                <div class="font-size-control" style="margin-bottom: 20px; padding: 12px; background: rgba(10, 31, 10, 0.5); border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.2);">
+                    <label for="fontSizeSlider" style="display: block; margin-bottom: 8px; color: var(--text-light); font-size: 0.9rem; font-weight: 500;">Tamaño de fuente: <span id="fontSizeValue">100%</span></label>
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <input type="range" id="fontSizeSlider" min="50" max="150" value="100" step="5" style="flex: 1; height: 6px; background: rgba(255, 255, 255, 0.2); border-radius: 3px; outline: none; cursor: pointer;">
+                        <input type="number" id="fontSizeInput" min="50" max="150" value="100" step="5" style="width: 60px; padding: 6px; background: rgba(10, 31, 10, 0.7); border: 1px solid rgba(255, 255, 255, 0.3); border-radius: 6px; color: var(--text-light); font-size: 0.9rem; text-align: center;">
+                        <span style="color: var(--text-muted); font-size: 0.85rem;">%</span>
+                    </div>
+                </div>
                 <div class="font-options">
                     <div class="font-option" data-font="'Segoe UI', Tahoma, Geneva, Verdana, sans-serif">
                         <div class="font-preview" style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">Segoe UI</div>

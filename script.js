@@ -1245,6 +1245,41 @@ class PlantManager {
                 });
             });
 
+            // Control de tamaño de fuente
+            const fontSizeSlider = document.getElementById('fontSizeSlider');
+            const fontSizeInput = document.getElementById('fontSizeValue');
+            const fontSizeNumberInput = document.getElementById('fontSizeInput');
+            
+            if (fontSizeSlider && fontSizeInput && fontSizeNumberInput) {
+                // Sincronizar slider e input numérico
+                const syncFontSize = (value) => {
+                    const numValue = typeof value === 'string' ? parseFloat(value) : value;
+                    fontSizeSlider.value = numValue;
+                    fontSizeNumberInput.value = numValue;
+                    fontSizeInput.textContent = `${numValue}%`;
+                    this.changeFontSize(numValue);
+                };
+
+                fontSizeSlider.addEventListener('input', (e) => {
+                    syncFontSize(parseFloat(e.target.value));
+                });
+
+                fontSizeNumberInput.addEventListener('input', (e) => {
+                    let value = parseFloat(e.target.value);
+                    if (isNaN(value)) return;
+                    if (value < 50) value = 50;
+                    if (value > 150) value = 150;
+                    syncFontSize(value);
+                });
+
+                fontSizeNumberInput.addEventListener('blur', (e) => {
+                    let value = parseFloat(e.target.value);
+                    if (isNaN(value) || value < 50) value = 50;
+                    if (value > 150) value = 150;
+                    syncFontSize(value);
+                });
+            }
+
             // Background changer
             const changeBgBtn = document.getElementById('changeBgBtn');
             if (changeBgBtn) {
@@ -1314,6 +1349,10 @@ class PlantManager {
         if (savedFont) {
             this.changeFont(savedFont, false);
         }
+        
+        // Cargar tamaño de fuente guardado
+        const savedFontSize = localStorage.getItem('plantDiaryFontSize') || '100';
+        this.changeFontSize(savedFontSize, false);
     }
 
     showBgModal() {
@@ -1531,6 +1570,18 @@ class PlantManager {
                 option.classList.add('active');
             }
         });
+
+        // Cargar tamaño de fuente guardado
+        const savedFontSize = localStorage.getItem('plantDiaryFontSize') || '100';
+        const fontSizeSlider = document.getElementById('fontSizeSlider');
+        const fontSizeInput = document.getElementById('fontSizeValue');
+        const fontSizeNumberInput = document.getElementById('fontSizeInput');
+        
+        if (fontSizeSlider && fontSizeInput && fontSizeNumberInput) {
+            fontSizeSlider.value = savedFontSize;
+            fontSizeNumberInput.value = savedFontSize;
+            fontSizeInput.textContent = `${savedFontSize}%`;
+        }
     }
     
     // Cambiar fuente de toda la página
@@ -1555,6 +1606,53 @@ class PlantManager {
                 option.classList.add('active');
             }
         });
+    }
+
+    // Cambiar tamaño de fuente de toda la página
+    changeFontSize(percentage, save = true) {
+        // Asegurar que percentage sea un número
+        const percentageNum = typeof percentage === 'string' ? parseFloat(percentage) : percentage;
+        
+        if (isNaN(percentageNum)) {
+            console.error('changeFontSize: percentage no es un número válido', percentage);
+            return;
+        }
+        
+        const multiplier = percentageNum / 100;
+        
+        if (save) {
+            localStorage.setItem('plantDiaryFontSize', percentageNum.toString());
+        }
+        
+        // Actualizar variable CSS
+        document.documentElement.style.setProperty('--font-size-multiplier', multiplier);
+        
+        // Usar zoom para escalar todo el contenido (Chrome, Edge, Safari)
+        // zoom escala todo: textos, imágenes, elementos, etc.
+        document.documentElement.style.zoom = multiplier;
+        
+        // Fallback para Firefox: usar transform scale
+        // Firefox no soporta zoom, así que usamos transform
+        const isFirefox = navigator.userAgent.toLowerCase().indexOf('firefox') > -1;
+        
+        if (isFirefox) {
+            // Limpiar zoom
+            document.documentElement.style.zoom = '';
+            // Usar transform scale
+            document.documentElement.style.transform = `scale(${multiplier})`;
+            document.documentElement.style.transformOrigin = 'top left';
+            // Ajustar el viewport para evitar scroll horizontal
+            const viewportWidth = 100 / multiplier;
+            document.body.style.width = `${viewportWidth}%`;
+            document.body.style.minHeight = `${100 / multiplier}vh`;
+        } else {
+            // Limpiar transform si no es Firefox
+            document.documentElement.style.transform = '';
+            document.body.style.width = '';
+            document.body.style.minHeight = '';
+        }
+        
+        console.log(`Font size changed: ${percentageNum}% (multiplier: ${multiplier}, Firefox: ${isFirefox})`);
     }
 
     // Guardar una planta específica en Firebase
