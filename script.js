@@ -3813,11 +3813,11 @@ class PlantManager {
                             <span class="plant-list-value">${this.escapeHtml(light)}</span>
                         </div>
                     </div>
-                    <div class="plant-list-actions-desktop">
-                        ${buttonsHtml}
-                    </div>
                     <div class="plant-list-icons-desktop">
                         ${iconsHtml}
+                    </div>
+                    <div class="plant-list-actions-desktop">
+                        ${buttonsHtml}
                     </div>
                 </div>
                 
