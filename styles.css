@@ -19,6 +19,7 @@
     --water-blue: rgb(135, 206, 250);
     --water-blue-opacity: rgba(135, 206, 250, 0.8);
     --font-size-multiplier: 1;
+    --app-font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
 body {

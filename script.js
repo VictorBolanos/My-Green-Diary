@@ -835,7 +835,7 @@ class PlantManager {
                 this.db = firebase.firestore();
                 this.storage = firebase.storage();
                 this.useFirebase = true;
-                console.log('✅ Firebase conectado correctamente (Firestore + Storage)');
+                // Firebase conectado correctamente
                 await this.loadPlantsFromFirebase();
             } catch (error) {
                 console.error('Error inicializando Firebase:', error);
@@ -844,7 +844,7 @@ class PlantManager {
                 this.useFirebase = false;
             }
         } else {
-            console.log('ℹ️ Firebase no configurado, usando localStorage');
+            // Firebase no configurado, usando localStorage
             const localPlants = this.loadPlantsFromLocalStorage();
             this.plants = localPlants.map(plant => this.normalizePlantData(plant));
         }
@@ -861,7 +861,7 @@ class PlantManager {
                 const plant = { id: doc.id, ...doc.data() };
                 return this.normalizePlantData(plant);
             });
-            console.log(`📦 ${this.plants.length} plantas cargadas desde Firebase`);
+            // Plantas cargadas desde Firebase
             
             // Si hay plantas en localStorage pero no en Firebase, migrar
             const localPlants = this.loadPlantsFromLocalStorage();
@@ -1321,7 +1321,7 @@ class PlantManager {
                 });
             }
 
-            console.log('✅ Event listeners configurados correctamente');
+            // Event listeners configurados correctamente
         } catch (error) {
             console.error('Error configurando event listeners:', error);
         }
@@ -1590,14 +1590,10 @@ class PlantManager {
             localStorage.setItem('plantDiaryFont', fontFamily);
         }
         
-        // Aplicar fuente a todo el body y todos los elementos
+        // Aplicar fuente usando CSS variable para mejor rendimiento
+        // Esto es mucho más eficiente que iterar sobre todos los elementos
+        document.documentElement.style.setProperty('--app-font-family', fontFamily);
         document.body.style.fontFamily = fontFamily;
-        
-        // También aplicar a todos los elementos para asegurar que se aplique
-        const allElements = document.querySelectorAll('*');
-        allElements.forEach(el => {
-            el.style.fontFamily = fontFamily;
-        });
         
         // Marcar opción activa en el modal si está abierto
         document.querySelectorAll('.font-option').forEach(option => {
@@ -1627,18 +1623,12 @@ class PlantManager {
         // Actualizar variable CSS
         document.documentElement.style.setProperty('--font-size-multiplier', multiplier);
         
-        // Usar zoom para escalar todo el contenido (Chrome, Edge, Safari)
-        // zoom escala todo: textos, imágenes, elementos, etc.
-        document.documentElement.style.zoom = multiplier;
-        
-        // Fallback para Firefox: usar transform scale
-        // Firefox no soporta zoom, así que usamos transform
+        // Detectar navegador antes de aplicar cambios
         const isFirefox = navigator.userAgent.toLowerCase().indexOf('firefox') > -1;
         
         if (isFirefox) {
-            // Limpiar zoom
+            // Firefox no soporta zoom, usar transform scale
             document.documentElement.style.zoom = '';
-            // Usar transform scale
             document.documentElement.style.transform = `scale(${multiplier})`;
             document.documentElement.style.transformOrigin = 'top left';
             // Ajustar el viewport para evitar scroll horizontal
@@ -1646,13 +1636,13 @@ class PlantManager {
             document.body.style.width = `${viewportWidth}%`;
             document.body.style.minHeight = `${100 / multiplier}vh`;
         } else {
-            // Limpiar transform si no es Firefox
+            // Chrome, Edge, Safari: usar zoom (más eficiente y sin problemas de layout)
+            document.documentElement.style.zoom = multiplier;
+            // Limpiar transform si estaba aplicado previamente
             document.documentElement.style.transform = '';
             document.body.style.width = '';
             document.body.style.minHeight = '';
         }
-        
-        console.log(`Font size changed: ${percentageNum}% (multiplier: ${multiplier}, Firefox: ${isFirefox})`);
     }
 
     // Guardar una planta específica en Firebase
