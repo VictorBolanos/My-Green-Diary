@@ -3066,8 +3066,8 @@ class PlantManager {
         const sortedLightStats = Object.entries(lightStats)
             .filter(([light]) => light !== 'Sin especificar')
             .sort((a, b) => {
-                // Ordenar por orden lógico: Sombra, Sombra Parcial, Luz Indirecta, Luz Directa, Luz Intensa
-                const order = { 'Sombra': 1, 'Sombra Parcial': 2, 'Luz Indirecta': 3, 'Luz Directa': 4, 'Luz Intensa': 5 };
+                // Ordenar por orden lógico: Sombra, Sombra Parcial, Luz Indirecta, Luz indirecta brillante, Luz Directa, Luz Intensa
+                const order = { 'Sombra': 1, 'Sombra Parcial': 2, 'Luz Indirecta': 3, 'Luz indirecta brillante': 4, 'Luz Directa': 5, 'Luz Intensa': 6 };
                 return (order[a[0]] || 99) - (order[b[0]] || 99);
             });
         const totalLight = Object.values(lightStats).reduce((a, b) => a + b, 0);
