@@ -63,6 +63,7 @@ class PlantManager {
         this.storage = null;
         this.useFirebase = false;
         this.modalPhotoIndex = {}; // Índice del carrusel de fotos en modal
+        this.photoUrlCache = new Map(); // Caché de paths de Storage → URLs de descarga
         this.lightboxPhotoIndex = 0; // Índice de la foto en el lightbox
         this.lightboxPlantId = null; // ID de la planta en el lightbox
         this.lightboxCommentPhotos = null; // Fotos del comentario en el lightbox (si es un comentario)
@@ -678,6 +679,118 @@ class PlantManager {
         }
     }
 
+    // Extraer el path de archivo desde una URL completa de Firebase Storage
+    extractStoragePath(url) {
+        try {
+            const match = url.match(/\/o\/([^?]+)/);
+            if (match) return decodeURIComponent(match[1]);
+        } catch (e) {}
+        return null;
+    }
+
+    // Comprobar si un valor es un path de Storage (no URL completa ni base64)
+    isStoragePath(value) {
+        if (!value) return false;
+        if (value.startsWith('data:')) return false;
+        if (value.startsWith('http')) return false;
+        return true;
+    }
+
+    // Devuelve URL de visualización desde caché (síncrono)
+    getDisplayUrl(pathOrUrl) {
+        const placeholder = 'https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=400';
+        if (!pathOrUrl) return placeholder;
+        if (!this.isStoragePath(pathOrUrl)) return pathOrUrl; // base64 o URL externa
+        return this.photoUrlCache.get(pathOrUrl) || placeholder;
+    }
+
+    // Resolver un path a URL fresca y cachearla
+    async resolvePhotoUrl(path) {
+        if (!path || !this.storage || !this.isStoragePath(path)) return path;
+        if (this.photoUrlCache.has(path)) return this.photoUrlCache.get(path);
+        try {
+            const url = await this.storage.ref().child(path).getDownloadURL();
+            this.photoUrlCache.set(path, url);
+            return url;
+        } catch (e) {
+            console.warn('No se pudo resolver URL para:', path, e);
+            return null;
+        }
+    }
+
+    // Pre-resolver todas las fotos de plantas para renderizado síncrono
+    async resolveAllPlantPhotos() {
+        if (!this.storage) return;
+        const paths = new Set();
+        for (const plant of this.plants) {
+            for (const photo of (plant.photos || [])) {
+                if (this.isStoragePath(photo)) paths.add(photo);
+            }
+            for (const comment of (plant.comments || [])) {
+                for (const photo of (comment.photos || [])) {
+                    if (this.isStoragePath(photo)) paths.add(photo);
+                }
+            }
+        }
+        await Promise.allSettled([...paths].map(p => this.resolvePhotoUrl(p)));
+    }
+
+    // Migrar URLs completas de Firebase Storage a paths en Firestore
+    async migratePhotoUrlsToPaths() {
+        if (!this.useFirebase || !this.db || !this.storage) return;
+        const batch = this.db.batch();
+        let changed = false;
+
+        for (const plant of this.plants) {
+            const photos = plant.photos || [];
+            const migratedPhotos = photos.map(photo => {
+                if (photo && photo.includes('firebasestorage.googleapis.com')) {
+                    const path = this.extractStoragePath(photo);
+                    return path || photo;
+                }
+                return photo;
+            });
+            const photosChanged = migratedPhotos.some((p, i) => p !== photos[i]);
+
+            let commentsChanged = false;
+            const migratedComments = (plant.comments || []).map(comment => {
+                if (!comment.photos) return comment;
+                const migratedCommentPhotos = comment.photos.map(photo => {
+                    if (photo && photo.includes('firebasestorage.googleapis.com')) {
+                        const path = this.extractStoragePath(photo);
+                        return path || photo;
+                    }
+                    return photo;
+                });
+                if (migratedCommentPhotos.some((p, i) => p !== comment.photos[i])) {
+                    commentsChanged = true;
+                    return { ...comment, photos: migratedCommentPhotos };
+                }
+                return comment;
+            });
+
+            if (photosChanged || commentsChanged) {
+                if (photosChanged) plant.photos = migratedPhotos;
+                if (commentsChanged) plant.comments = migratedComments;
+                const ref = this.db.collection('plants').doc(plant.id);
+                const update = {};
+                if (photosChanged) update.photos = migratedPhotos;
+                if (commentsChanged) update.comments = migratedComments;
+                batch.update(ref, update);
+                changed = true;
+            }
+        }
+
+        if (changed) {
+            try {
+                await batch.commit();
+                console.log('✅ URLs de fotos migradas a paths en Firestore');
+            } catch (e) {
+                console.error('Error migrando URLs a paths:', e);
+            }
+        }
+    }
+
     // Obtener datos de sustrato del formulario
     getSubstrateData() {
         const inputs = document.querySelectorAll('.substrate-percentage-input');
@@ -837,6 +950,8 @@ class PlantManager {
                 this.useFirebase = true;
                 // Firebase conectado correctamente
                 await this.loadPlantsFromFirebase();
+                await this.migratePhotoUrlsToPaths();
+                await this.resolveAllPlantPhotos();
             } catch (error) {
                 console.error('Error inicializando Firebase:', error);
                 const localPlants = this.loadPlantsFromLocalStorage();
@@ -1709,29 +1824,39 @@ class PlantManager {
                     // Eliminar todas las fotos de Firebase Storage
                     if (photos.length > 0) {
                         for (const photoUrl of photos) {
-                            // Solo intentar eliminar si es una URL de Firebase Storage
-                            if (photoUrl && photoUrl.includes('firebasestorage.googleapis.com')) {
-                                try {
-                                    const imageRef = this.storage.refFromURL(photoUrl);
-                                    await imageRef.delete();
-                                    console.log('✅ Foto eliminada de Storage:', photoUrl);
-                                } catch (storageError) {
-                                    console.warn('⚠️ No se pudo eliminar la foto de Storage (puede que ya no exista):', photoUrl, storageError);
-                                    // Continuar eliminando otras fotos aunque falle una
+                            try {
+                                let imageRef;
+                                if (this.isStoragePath(photoUrl)) {
+                                    imageRef = this.storage.ref().child(photoUrl);
+                                } else if (photoUrl && photoUrl.includes('firebasestorage.googleapis.com')) {
+                                    imageRef = this.storage.refFromURL(photoUrl);
                                 }
+                                if (imageRef) {
+                                    await imageRef.delete();
+                                    this.photoUrlCache.delete(photoUrl);
+                                    console.log('✅ Foto eliminada de Storage:', photoUrl);
+                                }
+                            } catch (storageError) {
+                                console.warn('⚠️ No se pudo eliminar la foto de Storage:', photoUrl, storageError);
                             }
                         }
                     }
-                    
+
                     // También intentar eliminar el campo photo antiguo si existe (retrocompatibilidad)
-                    if (plant.photo && plant.photo.includes('firebasestorage.googleapis.com')) {
+                    if (plant.photo) {
                         try {
-                            const imageRef = this.storage.refFromURL(plant.photo);
-                            await imageRef.delete();
-                            console.log('✅ Imagen antigua eliminada de Storage');
+                            let imageRef;
+                            if (this.isStoragePath(plant.photo)) {
+                                imageRef = this.storage.ref().child(plant.photo);
+                            } else if (plant.photo.includes('firebasestorage.googleapis.com')) {
+                                imageRef = this.storage.refFromURL(plant.photo);
+                            }
+                            if (imageRef) {
+                                await imageRef.delete();
+                                console.log('✅ Imagen antigua eliminada de Storage');
+                            }
                         } catch (storageError) {
                             console.warn('⚠️ No se pudo eliminar la imagen antigua de Storage:', storageError);
-                            // Continuar aunque falle
                         }
                     }
                 }
@@ -2189,9 +2314,10 @@ class PlantManager {
             if (previewImg.src.startsWith('data:image')) {
                 return previewImg.src; // Devolver base64
             }
-            // Si es una URL de Firebase Storage, devolverla
+            // Si es una URL de Firebase Storage, extraer el path
             if (previewImg.src.startsWith('http')) {
-                return previewImg.src;
+                const path = this.extractStoragePath(previewImg.src);
+                return path || previewImg.src;
             }
         }
         
@@ -2212,12 +2338,13 @@ class PlantManager {
 
         // Subir el archivo
         const snapshot = await storageRef.put(file);
-        
-        // Obtener la URL de descarga
+
+        // Obtener la URL de descarga y cachearla para mostrar inmediatamente
         const downloadURL = await snapshot.ref.getDownloadURL();
-        
-        console.log('✅ Imagen subida a Firebase Storage:', downloadURL);
-        return downloadURL;
+        this.photoUrlCache.set(fileName, downloadURL);
+
+        console.log('✅ Imagen subida a Firebase Storage:', fileName);
+        return fileName; // Devolver el path, no la URL con token
     }
 
     async handleFormSubmit(e) {
@@ -3673,7 +3800,7 @@ class PlantManager {
     createPlantCard(plant) {
         const normalizedPlant = this.normalizePlantData(plant);
         const photos = normalizedPlant.photos || [];
-        const lastPhoto = photos.length > 0 ? photos[photos.length - 1] : 'https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=400';
+        const lastPhoto = photos.length > 0 ? this.getDisplayUrl(photos[photos.length - 1]) : 'https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=400';
         
         // Obtener última fecha de riego
         const wateringDates = normalizedPlant.wateringDates || [];
@@ -3719,8 +3846,8 @@ class PlantManager {
                     </div>
                 </div>
                 <div class="plant-card-content">
-                    <img src="${lastPhoto}" alt="${this.escapeHtml(plant.name)}" class="plant-card-image" 
-                         onerror="if(this.src !== 'https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=400') { plantManager.removeInvalidPhoto('${plant.id}', this.src).then(() => { this.src='https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=400'; }); } else { this.src='https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=400'; }">
+                    <img src="${lastPhoto}" alt="${this.escapeHtml(plant.name)}" class="plant-card-image"
+                         onerror="this.src='https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=400'">
                     <div class="plant-card-info">
                         ${wateringStatus}
                     </div>
@@ -4205,25 +4332,10 @@ class PlantManager {
         const lightboxPhotoCount = document.getElementById('lightboxPhotoCount');
         
         if (lightboxImage) {
-            lightboxImage.src = photos[photoIndex];
-            // Añadir handler de error si no existe
-            if (!lightboxImage.hasAttribute('data-error-handler')) {
-                lightboxImage.setAttribute('data-error-handler', 'true');
-                lightboxImage.onerror = async function() {
-                    const currentSrc = this.src;
-                    const fallbackSrc = 'https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=800';
-                    if (currentSrc !== fallbackSrc && this.lightboxPlantId) {
-                        await plantManager.removeInvalidPhoto(this.lightboxPlantId, currentSrc);
-                        this.src = fallbackSrc;
-                    } else {
-                        this.src = fallbackSrc;
-                    }
-                };
-                lightboxImage.lightboxPlantId = plantId;
-            } else {
-                // Actualizar plantId en el handler
-                lightboxImage.lightboxPlantId = plantId;
-            }
+            lightboxImage.src = this.getDisplayUrl(photos[photoIndex]);
+            lightboxImage.onerror = function() {
+                this.src = 'https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=800';
+            };
         }
         
         if (lightboxPhotoCount) {
@@ -4288,7 +4400,7 @@ class PlantManager {
         const modalBody = document.getElementById('modalBody');
         const normalizedPlant = this.normalizePlantData(plant);
         const photos = normalizedPlant.photos || [];
-        const lastPhoto = photos.length > 0 ? photos[photos.length - 1] : 'https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=800';
+        const lastPhoto = photos.length > 0 ? this.getDisplayUrl(photos[photos.length - 1]) : 'https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=800';
         const wateringDates = normalizedPlant.wateringDates || [];
         const lastWateringDate = wateringDates.length > 0 ? wateringDates[0] : null;
         
@@ -4328,8 +4440,8 @@ class PlantManager {
                         <div class="comment-photos">
                             ${comment.photos.map((photo, photoIndex) => `
                                 <div class="comment-photo-wrapper">
-                                    <img src="${photo}" alt="Foto del comentario" class="comment-photo" onclick="plantManager.openCommentPhotoLightbox('${plant.id}', '${commentId}', ${photoIndex})" 
-                                         onerror="this.style.display='none';">
+                                    <img src="${this.getDisplayUrl(photo)}" alt="Foto del comentario" class="comment-photo" onclick="plantManager.openCommentPhotoLightbox('${plant.id}', '${commentId}', ${photoIndex})"
+                                         onerror="this.style.display='none'">
                                     <button class="comment-photo-delete-btn" onclick="event.stopPropagation(); plantManager.deleteCommentPhoto('${plant.id}', '${commentId}', ${photoIndex})" title="Eliminar foto">
                                         <img src="img/icons/delete.svg" alt="Eliminar" class="comment-photo-delete-icon">
                                     </button>
@@ -4345,7 +4457,7 @@ class PlantManager {
                                 <div class="comment-photos-edit-list" style="display: flex; flex-wrap: wrap; gap: 10px;">
                                     ${comment.photos.map((photo, photoIndex) => `
                                         <div class="comment-photo-edit-wrapper" data-photo-index="${photoIndex}" style="position: relative; width: 80px; height: 80px; border-radius: 8px; overflow: hidden; border: 2px solid rgba(255, 255, 255, 0.3);">
-                                            <img src="${photo}" alt="Foto" style="width: 100%; height: 100%; object-fit: cover;">
+                                            <img src="${this.getDisplayUrl(photo)}" alt="Foto" style="width: 100%; height: 100%; object-fit: cover;">
                                             <button class="comment-photo-edit-delete" onclick="plantManager.removeCommentPhotoFromEdit('${commentId}', ${photoIndex})" title="Eliminar foto" style="position: absolute; top: 2px; right: 2px; background: rgba(220, 53, 69, 0.9); border: 1px solid rgba(255, 255, 255, 0.9); border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0;">
                                                 <img src="img/icons/delete.svg" alt="Eliminar" style="width: 14px; height: 14px; filter: brightness(0) invert(1);">
                                             </button>
@@ -4381,8 +4493,8 @@ class PlantManager {
         const photoCarouselHtml = photos.length > 1 ? `
             <div class="photo-carousel-modal">
                 <div class="carousel-main-photo">
-                    <img src="${photos[currentPhotoIndex]}" alt="${this.escapeHtml(plant.name)}" class="modal-image carousel-main-img" id="modalMainPhoto-${plant.id}" onclick="plantManager.openPhotoLightbox('${plant.id}', ${currentPhotoIndex})" style="cursor: pointer;"
-                         onerror="if(this.src !== 'https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=800') { plantManager.removeInvalidPhoto('${plant.id}', this.src).then(() => { this.src='https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=800'; }); } else { this.src='https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=800'; }">
+                    <img src="${this.getDisplayUrl(photos[currentPhotoIndex])}" alt="${this.escapeHtml(plant.name)}" class="modal-image carousel-main-img" id="modalMainPhoto-${plant.id}" onclick="plantManager.openPhotoLightbox('${plant.id}', ${currentPhotoIndex})" style="cursor: pointer;"
+                         onerror="this.src='https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=800'">
                     <button class="carousel-delete-btn" onclick="event.stopPropagation(); plantManager.deletePhoto('${plant.id}', '${photos[currentPhotoIndex]}', ${currentPhotoIndex})" title="Eliminar foto">
                         <img src="img/icons/delete.svg" alt="Eliminar" class="carousel-delete-icon">
                     </button>
@@ -4392,9 +4504,9 @@ class PlantManager {
                 <div class="carousel-thumbnails">
                     ${photos.map((photo, index) => `
                         <div class="carousel-thumb-wrapper">
-                            <img src="${photo}" alt="Foto ${index + 1}" class="carousel-thumb ${index === currentPhotoIndex ? 'active' : ''}" 
+                            <img src="${this.getDisplayUrl(photo)}" alt="Foto ${index + 1}" class="carousel-thumb ${index === currentPhotoIndex ? 'active' : ''}"
                                  onclick="plantManager.selectModalPhoto('${plant.id}', ${index})" data-index="${index}"
-                                 onerror="if(this.src !== 'https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=800') { plantManager.removeInvalidPhoto('${plant.id}', this.src); this.style.display='none'; }">
+                                 onerror="this.style.display='none'">
                             <button class="carousel-thumb-delete-btn" onclick="event.stopPropagation(); plantManager.deletePhoto('${plant.id}', '${photo}', ${index})" title="Eliminar foto">
                                 <img src="img/icons/delete.svg" alt="Eliminar" class="carousel-thumb-delete-icon">
                             </button>
@@ -4406,7 +4518,7 @@ class PlantManager {
             <div class="photo-carousel-modal">
                 <div class="carousel-main-photo">
                     <img src="${lastPhoto}" alt="${this.escapeHtml(plant.name)}" class="modal-image carousel-main-img" onclick="plantManager.openPhotoLightbox('${plant.id}', 0)" style="cursor: pointer;"
-                         onerror="if(this.src !== 'https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=800') { plantManager.removeInvalidPhoto('${plant.id}', this.src).then(() => { this.src='https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=800'; }); } else { this.src='https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=800'; }">
+                         onerror="this.src='https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=800'">
                     <button class="carousel-delete-btn" onclick="event.stopPropagation(); plantManager.deletePhoto('${plant.id}', '${lastPhoto}', 0)" title="Eliminar foto">
                         <img src="img/icons/delete.svg" alt="Eliminar" class="carousel-delete-icon">
                     </button>
@@ -4750,7 +4862,7 @@ class PlantManager {
         
         const mainPhoto = document.getElementById(`modalMainPhoto-${plantId}`);
         if (mainPhoto) {
-            mainPhoto.src = photos[index];
+            mainPhoto.src = this.getDisplayUrl(photos[index]);
         }
         
         document.querySelectorAll('.carousel-thumb').forEach((thumb, i) => {
@@ -4821,13 +4933,19 @@ class PlantManager {
             // Si hay fotos en Firebase Storage, intentar borrarlas primero
             if (this.useFirebase && this.storage) {
                 try {
-                    // Usar refFromURL para obtener la referencia directamente desde la URL
-                    const imageRef = this.storage.refFromURL(photoUrl);
-                    await imageRef.delete();
-                    console.log('✅ Foto eliminada de Firebase Storage:', photoUrl);
+                    let imageRef;
+                    if (this.isStoragePath(photoUrl)) {
+                        imageRef = this.storage.ref().child(photoUrl);
+                    } else if (photoUrl.includes('firebasestorage.googleapis.com')) {
+                        imageRef = this.storage.refFromURL(photoUrl);
+                    }
+                    if (imageRef) {
+                        await imageRef.delete();
+                        this.photoUrlCache.delete(photoUrl);
+                        console.log('✅ Foto eliminada de Firebase Storage:', photoUrl);
+                    }
                 } catch (error) {
-                    console.warn('⚠️ No se pudo eliminar la foto de Storage (puede que ya no exista o no sea de Firebase):', error);
-                    // Continuar aunque falle el borrado de Storage (puede ser una URL externa)
+                    console.warn('⚠️ No se pudo eliminar la foto de Storage:', error);
                 }
             }
 
@@ -5031,7 +5149,9 @@ class PlantManager {
                                 const fileName = `comments/${plantId}/${timestamp}_${file.name}`;
                                 const storageRef = this.storage.ref().child(fileName);
                                 await storageRef.put(file);
-                                photoUrl = await storageRef.getDownloadURL();
+                                const downloadURL = await storageRef.getDownloadURL();
+                                this.photoUrlCache.set(fileName, downloadURL);
+                                photoUrl = fileName; // Guardar path, no URL con token
                             } else {
                                 // Usar base64 si no hay Firebase
                                 photoUrl = await new Promise((resolve) => {
@@ -5251,12 +5371,20 @@ class PlantManager {
                     for (const photoIndex of photosToDeleteSorted) {
                         const photoUrl = comment.photos[photoIndex];
                         
-                        // Eliminar de Firebase Storage si es una URL de Firebase
-                        if (photoUrl && photoUrl.includes('firebasestorage.googleapis.com') && this.useFirebase && this.storage) {
+                        // Eliminar de Firebase Storage si es un path o URL de Firebase
+                        if (photoUrl && this.useFirebase && this.storage) {
                             try {
-                                const imageRef = this.storage.refFromURL(photoUrl);
-                                await imageRef.delete();
-                                console.log('✅ Foto del comentario eliminada de Storage');
+                                let imageRef;
+                                if (this.isStoragePath(photoUrl)) {
+                                    imageRef = this.storage.ref().child(photoUrl);
+                                } else if (photoUrl.includes('firebasestorage.googleapis.com')) {
+                                    imageRef = this.storage.refFromURL(photoUrl);
+                                }
+                                if (imageRef) {
+                                    await imageRef.delete();
+                                    this.photoUrlCache.delete(photoUrl);
+                                    console.log('✅ Foto del comentario eliminada de Storage');
+                                }
                             } catch (error) {
                                 console.warn('⚠️ No se pudo eliminar la foto del comentario:', error);
                             }
@@ -5286,7 +5414,9 @@ class PlantManager {
                                 const fileName = `comments/${plantId}/${timestamp}_${file.name}`;
                                 const storageRef = this.storage.ref().child(fileName);
                                 await storageRef.put(file);
-                                photoUrl = await storageRef.getDownloadURL();
+                                const downloadURL = await storageRef.getDownloadURL();
+                                this.photoUrlCache.set(fileName, downloadURL);
+                                photoUrl = fileName; // Guardar path, no URL con token
                             } else {
                                 // Usar base64 si no hay Firebase
                                 photoUrl = await new Promise((resolve) => {
@@ -5359,14 +5489,20 @@ class PlantManager {
             // Eliminar fotos del comentario de Firebase Storage si existen
             if (comment && comment.photos && comment.photos.length > 0 && this.useFirebase && this.storage) {
                 for (const photoUrl of comment.photos) {
-                    if (photoUrl && photoUrl.includes('firebasestorage.googleapis.com')) {
-                        try {
-                            const imageRef = this.storage.refFromURL(photoUrl);
-                            await imageRef.delete();
-                            console.log('✅ Foto del comentario eliminada de Storage');
-                        } catch (error) {
-                            console.warn('⚠️ No se pudo eliminar la foto del comentario:', error);
+                    try {
+                        let imageRef;
+                        if (this.isStoragePath(photoUrl)) {
+                            imageRef = this.storage.ref().child(photoUrl);
+                        } else if (photoUrl && photoUrl.includes('firebasestorage.googleapis.com')) {
+                            imageRef = this.storage.refFromURL(photoUrl);
                         }
+                        if (imageRef) {
+                            await imageRef.delete();
+                            this.photoUrlCache.delete(photoUrl);
+                            console.log('✅ Foto del comentario eliminada de Storage');
+                        }
+                    } catch (error) {
+                        console.warn('⚠️ No se pudo eliminar la foto del comentario:', error);
                     }
                 }
             }
@@ -5396,17 +5532,25 @@ class PlantManager {
         try {
             const photoUrl = comment.photos[photoIndex];
             
-            // Eliminar de Firebase Storage si es una URL de Firebase
-            if (photoUrl && photoUrl.includes('firebasestorage.googleapis.com') && this.useFirebase && this.storage) {
+            // Eliminar de Firebase Storage si es un path o URL de Firebase
+            if (photoUrl && this.useFirebase && this.storage) {
                 try {
-                    const imageRef = this.storage.refFromURL(photoUrl);
-                    await imageRef.delete();
-                    console.log('✅ Foto del comentario eliminada de Storage');
+                    let imageRef;
+                    if (this.isStoragePath(photoUrl)) {
+                        imageRef = this.storage.ref().child(photoUrl);
+                    } else if (photoUrl.includes('firebasestorage.googleapis.com')) {
+                        imageRef = this.storage.refFromURL(photoUrl);
+                    }
+                    if (imageRef) {
+                        await imageRef.delete();
+                        this.photoUrlCache.delete(photoUrl);
+                        console.log('✅ Foto del comentario eliminada de Storage');
+                    }
                 } catch (error) {
                     console.warn('⚠️ No se pudo eliminar la foto del comentario:', error);
                 }
             }
-            
+
             // Eliminar del array
             comment.photos.splice(photoIndex, 1);
             if (comment.photos.length === 0) {
@@ -5465,7 +5609,7 @@ class PlantManager {
         const nextBtn = lightbox.querySelector('.lightbox-nav.next');
         
         if (lightboxImage) {
-            lightboxImage.src = comment.photos[photoIndex];
+            lightboxImage.src = this.getDisplayUrl(comment.photos[photoIndex]);
         }
         if (lightboxInfo) {
             lightboxInfo.textContent = `${photoIndex + 1} / ${comment.photos.length}`;
@@ -5498,7 +5642,7 @@ class PlantManager {
         const lightboxInfo = document.getElementById('lightboxPhotoCount');
         
         if (lightboxImage) {
-            lightboxImage.src = this.lightboxCommentPhotos[newIndex];
+            lightboxImage.src = this.getDisplayUrl(this.lightboxCommentPhotos[newIndex]);
         }
         if (lightboxInfo) {
             lightboxInfo.textContent = `${newIndex + 1} / ${this.lightboxCommentPhotos.length}`;
